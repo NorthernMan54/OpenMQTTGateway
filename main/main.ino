@@ -180,6 +180,8 @@ static bool esp32EthConnected = false;
 WiFiClientSecure eClient;
 #  else
 #    include <WiFi.h>
+#    include <WiFiMulti.h>
+WiFiMulti wifiMulti;
 WiFiClient eClient;
 #  endif
 #  include <Preferences.h>
@@ -193,6 +195,7 @@ Preferences preferences;
 #  include <DNSServer.h>
 #  include <ESP8266WebServer.h>
 #  include <ESP8266WiFi.h>
+#  include <ESP8266WiFiMulti.h>
 #  include <FS.h>
 #  include <WiFiManager.h>
 #  ifdef SECURE_CONNECTION
@@ -200,6 +203,7 @@ WiFiClientSecure eClient;
 X509List caCert(certificate);
 #  else
 WiFiClient eClient;
+ESP8266WiFiMulti wifiMulti;
 #  endif
 #  ifdef MDNS_SD
 #    include <ESP8266mDNS.h>
@@ -594,12 +598,28 @@ void setup() {
 #if defined(MDNS_SD) && defined(ESP8266)
   Log.trace(F("Connecting to MQTT by mDNS without mqtt hostname" CR));
   connectMQTTmdns();
+#elif defined(MDNS_SD) && defined(ESP32)
+  long port;
+  port = strtol(mqtt_port, NULL, 10);
+  if (strstr(mqtt_server, ".local")) {
+    Log.trace(F("Mqtt Server MDNS Lookup: %s" CR), mqtt_server);
+    char* p = strrchr(mqtt_server, '.');
+    if (p) // if found truncate at period
+      *p = 0;
+    mdns_init();
+    IPAddress ipaddr = MDNS.queryHost(mqtt_server, 10000 /* ms */);
+    (String() + ipaddr[0] + "." + ipaddr[1] + "." + ipaddr[2] + "." + ipaddr[3]).toCharArray(mqtt_server, 30);
+  }
+  Log.trace(F("Mqtt server: %s" CR), mqtt_server);
+  Log.trace(F("Port: %l" CR), port);
+  client.setServer(mqtt_server, port);
 #else
   long port;
   port = strtol(mqtt_port, NULL, 10);
   Log.trace(F("Port: %l" CR), port);
   Log.trace(F("Mqtt server: %s" CR), mqtt_server);
   client.setServer(mqtt_server, port);
+
 #endif
 
   setup_parameters();
@@ -823,6 +843,12 @@ void setOTA() {
 #  if defined(ZboardM5STICKC) || defined(ZboardM5STICKCP) || defined(ZboardM5STACK)
     M5Display("OTA in progress", "", "");
 #  endif
+#  ifdef ZgatewayRF
+    disableRFReceive();
+#  endif
+#  ifdef ZgatewayPilight
+    disablePilightReceive();
+#  endif
   });
   ArduinoOTA.onEnd([]() {
     Log.trace(F("\nOTA done" CR));
@@ -872,15 +898,21 @@ void setupTLS() {
 
 #if defined(ESPWifiManualSetup)
 void setup_wifi() {
-  char manual_wifi_ssid[] = wifi_ssid;
-  char manual_wifi_password[] = wifi_password;
+  //  char manual_wifi_ssid[] = wifi_ssid;
+  //  char manual_wifi_password[] = wifi_password;
+  wifiMulti.addAP(wifi_ssid, wifi_password);
+  Log.trace(F("Connecting to %s" CR), wifi_ssid);
+#  ifdef wifi_ssid1
+  wifiMulti.addAP(wifi_ssid1, wifi_password1);
+  Log.trace(F("Connecting to %s" CR), wifi_ssid1);
+#  endif
 
   delay(10);
   WiFi.mode(WIFI_STA);
   if (wifiProtocol) forceWifiProtocol();
 
-  // We start by connecting to a WiFi network
-  Log.trace(F("Connecting to %s" CR), manual_wifi_ssid);
+    // We start by connecting to a WiFi network
+    // Log.trace(F("Connecting to %s" CR), manual_wifi_ssid);
 #  ifdef ESPWifiAdvancedSetup
   IPAddress ip_adress(ip);
   IPAddress gateway_adress(gateway);
@@ -889,10 +921,8 @@ void setup_wifi() {
   if (!WiFi.config(ip_adress, gateway_adress, subnet_adress, dns_adress)) {
     Log.error(F("Wifi STA Failed to configure" CR));
   }
-  WiFi.begin(manual_wifi_ssid, manual_wifi_password);
-#  else
-  WiFi.begin(manual_wifi_ssid, manual_wifi_password);
 #  endif
+  wifiMulti.run();
 
   if (wifi_reconnect_bypass())
     Log.notice(F("Connected with saved credentials" CR));
@@ -903,7 +933,7 @@ void setup_wifi() {
     failure_number_ntwk++;
     disconnection_handling(failure_number_ntwk);
   }
-  Log.notice(F("WiFi ok with manual config credentials" CR));
+  Log.notice(F("WiFi ok with manual config credentials %s" CR), WiFi.SSID());
 }
 
 #elif defined(ESP8266) || defined(ESP32)

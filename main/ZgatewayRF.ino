@@ -69,7 +69,7 @@ void setupRF() {
   mySwitch.enableTransmit(RF_EMITTER_GPIO);
 #  endif
   mySwitch.setRepeatTransmit(RF_EMITTER_REPEAT);
-  mySwitch.enableReceive(RF_RECEIVER_GPIO);
+
   Log.trace(F("ZgatewayRF setup done" CR));
 }
 
@@ -114,11 +114,13 @@ void RFtoMQTT() {
 
 #  ifdef simpleReceiving
 void MQTTtoRF(char* topicOri, char* datacallback) {
+  Log.trace(F("MQTTtoRF simple %s" CR), topicOri);
 #    ifdef ZradioCC1101 // set Receive off and Transmitt on
   ELECHOUSE_cc1101.SetTx(receiveMhz);
-  mySwitch.disableReceive();
+  #    endif
+  disableRFReceive();
   mySwitch.enableTransmit(RF_EMITTER_GPIO);
-#    endif
+
   SIGNAL_SIZE_UL_ULL data = STRTO_UL_ULL(datacallback, NULL, 10); // we will not be able to pass values > 4294967295 on Arduino boards
 
   // RF DATA ANALYSIS
@@ -166,18 +168,14 @@ void MQTTtoRF(char* topicOri, char* datacallback) {
     // Acknowledgement to the GTWRF topic
     pub(subjectGTWRFtoMQTT, datacallback); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
   }
-#    ifdef ZradioCC1101 // set Receive on and Transmitt off
-  ELECHOUSE_cc1101.SetRx(receiveMhz);
-  mySwitch.disableTransmit();
-  mySwitch.enableReceive(RF_RECEIVER_GPIO);
-#    endif
+  enableRFReceive();
 }
 #  endif
 
 #  ifdef jsonReceiving
 void MQTTtoRF(char* topicOri, JsonObject& RFdata) { // json object decoding
   if (cmpToMainTopic(topicOri, subjectMQTTtoRF)) {
-    Log.trace(F("MQTTtoRF json" CR));
+    Log.trace(F("MQTTtoRF json %s" CR), topicOri);
     SIGNAL_SIZE_UL_ULL data = RFdata["value"];
     if (data != 0) {
       int valuePRT = RFdata["protocol"] | 1;
@@ -192,7 +190,7 @@ void MQTTtoRF(char* topicOri, JsonObject& RFdata) { // json object decoding
       if (validFrequency((int)trMhz)) {
         ELECHOUSE_cc1101.SetTx(trMhz);
         Log.notice(F("Transmit mhz: %F" CR), trMhz);
-        mySwitch.disableReceive();
+        disableRFReceive();
         mySwitch.enableTransmit(RF_EMITTER_GPIO);
       }
 #    endif
@@ -206,6 +204,7 @@ void MQTTtoRF(char* topicOri, JsonObject& RFdata) { // json object decoding
 #    ifdef ZradioCC1101 // set Receive on and Transmitt off
       float tempMhz = RFdata["mhz"];
       if (tempMhz != 0 && validFrequency((int)tempMhz)) {
+        activeReceiver = RF; // Enable RF Gateway
         receiveMhz = tempMhz;
         Log.notice(F("Receive mhz: %F" CR), receiveMhz);
         pub(subjectGTWRFtoMQTT, RFdata); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
@@ -220,25 +219,36 @@ void MQTTtoRF(char* topicOri, JsonObject& RFdata) { // json object decoding
       Log.error(F("MQTTtoRF Fail json" CR));
 #    endif
     }
+    enableActiveReceiver();
   }
-#    ifdef ZradioCC1101 // set Receive on and Transmitt off
-  ELECHOUSE_cc1101.SetRx(receiveMhz);
-  mySwitch.disableTransmit();
-  mySwitch.enableReceive(RF_RECEIVER_GPIO);
-#    endif
 }
 #  endif
-#endif
 
-#ifdef ZradioCC1101
-bool validFrequency(int mhz) {
-  //  CC1101 valid frequencies 300-348 MHZ, 387-464MHZ and 779-928MHZ.
-  if (mhz >= 300 && mhz <= 348)
-    return true;
-  if (mhz >= 387 && mhz <= 464)
-    return true;
-  if (mhz >= 779 && mhz <= 928)
-    return true;
-  return false;
+int receiveInterupt = -1;
+
+void disableRFReceive() {
+  Log.trace(F("disableRFReceive" CR));
+#  ifdef ZgatewayPilight
+// enablePilightReceive();
+#  endif
+  if (receiveInterupt != -1) {
+    receiveInterupt = -1;
+    mySwitch.disableReceive();
+  }
 }
+
+void enableRFReceive() {
+  Log.trace(F("enableRFReceive" CR));
+#  ifdef ZgatewayPilight
+  disablePilightReceive();
+#  endif
+#  ifdef ZradioCC1101 // set Receive on and Transmitt off
+  ELECHOUSE_cc1101.SpiStrobe(CC1101_SIDLE); // Idle receiver prior to setting a new frequency
+  ELECHOUSE_cc1101.SetRx(receiveMhz);
+  #  endif
+  mySwitch.disableTransmit();
+  receiveInterupt = RF_RECEIVER_GPIO;
+  mySwitch.enableReceive(RF_RECEIVER_GPIO);
+}
+
 #endif

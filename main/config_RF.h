@@ -34,6 +34,8 @@ extern void setupRF();
 extern void RFtoMQTT();
 extern void MQTTtoRF(char* topicOri, char* datacallback);
 extern void MQTTtoRF(char* topicOri, JsonObject& RFdata);
+extern void disableRFReceive();
+extern void enableRFReceive();
 #endif
 #ifdef ZgatewayRF2
 extern void setupRF2();
@@ -46,6 +48,8 @@ extern void setupPilight();
 extern void PilighttoMQTT();
 extern void MQTTtoPilight(char* topicOri, char* datacallback);
 extern void MQTTtoPilight(char* topicOri, JsonObject& RFdata);
+extern void disablePilightReceive();
+extern void enablePilightReceive();
 #endif
 /*-------------------RF topics & parameters----------------------*/
 //433Mhz MQTT Subjects and keys
@@ -88,6 +92,9 @@ extern void MQTTtoPilight(char* topicOri, JsonObject& RFdata);
 // Allow ZGatewayRF Module to change receive frequency of CC1101 Transceiver module
 #ifdef ZradioCC1101
 float receiveMhz = CC1101_FREQUENCY;
+int activeReceiver = 0; // 0 = PiLight, 1 = RF
+#  define PILIGHT 0
+#  define RF      1
 #endif
 
 /*-------------------PIN DEFINITIONS----------------------*/
@@ -115,6 +122,42 @@ float receiveMhz = CC1101_FREQUENCY;
 //RF PIN definition
 #    define RF_EMITTER_GPIO 4 //4 = D4 on arduino
 #  endif
+#endif
+
+#ifdef ZgatewayRF|| ZgatewayPilight
+#  ifdef ZradioCC1101
+bool validFrequency(int mhz) {
+  //  CC1101 valid frequencies 300-348 MHZ, 387-464MHZ and 779-928MHZ.
+  if (mhz >= 300 && mhz <= 348)
+    return true;
+  if (mhz >= 387 && mhz <= 464)
+    return true;
+  if (mhz >= 779 && mhz <= 928)
+    return true;
+  return false;
+}
+#  endif
+
+int currentReceiver = -1;
+
+void enableActiveReceiver() {
+  // if (currentReceiver != activeReceiver) {
+  Log.trace(F("enableActiveReceiver: %d" CR), activeReceiver);
+  switch (activeReceiver) {
+#  ifdef ZgatewayPilight
+    case PILIGHT:
+      enablePilightReceive();
+      break;
+#  endif
+#  ifdef ZgatewayRF
+    case RF:
+      enableRFReceive();
+      break;
+#  endif
+  }
+  currentReceiver = activeReceiver;
+  // }
+}
 #endif
 
 #endif
