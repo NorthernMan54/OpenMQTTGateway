@@ -169,15 +169,7 @@ void MQTTtoRF(char* topicOri, char* datacallback) {
     // Acknowledgement to the GTWRF topic
     pub(subjectGTWRFtoMQTT, datacallback); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
   }
-<<<<<<< HEAD
   enableRFReceive();
-=======
-#    ifdef ZradioCC1101 // set Receive on and Transmitt off
-  ELECHOUSE_cc1101.SetRx(receiveMhz);
-  mySwitch.disableTransmit();
-  mySwitch.enableReceive(RF_RECEIVER_GPIO);
-#    endif
->>>>>>> 1technophile/development
 }
 #  endif
 
@@ -230,7 +222,6 @@ void MQTTtoRF(char* topicOri, JsonObject& RFdata) { // json object decoding
     }
     enableActiveReceiver();
   }
-<<<<<<< HEAD
 }
 #  endif
 
@@ -253,10 +244,6 @@ void enableRFReceive() {
   disablePilightReceive();
 #  endif
 #  ifdef ZradioCC1101 // set Receive on and Transmitt off
-  ELECHOUSE_cc1101.SpiStrobe(CC1101_SIDLE); // Idle receiver prior to setting a new frequency
-=======
-#    ifdef ZradioCC1101 // set Receive on and Transmitt off
->>>>>>> 1technophile/development
   ELECHOUSE_cc1101.SetRx(receiveMhz);
   #  endif
   mySwitch.disableTransmit();

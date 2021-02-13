@@ -741,6 +741,10 @@ void setup() {
 #ifdef ZsensorSHTC3
   setupSHTC3();
 #endif
+#ifdef ZgatewayRTL_433
+  rtl_433setup();
+  modules.add(ZgatewayRTL_433);
+#endif
   Log.trace(F("mqtt_max_packet_size: %d" CR), mqtt_max_packet_size);
   Log.notice(F("Setup OpenMQTTGateway end" CR));
 }
@@ -897,7 +901,6 @@ void setupTLS() {
 
 #if defined(ESPWifiManualSetup)
 void setup_wifi() {
-<<<<<<< HEAD
   //  char manual_wifi_ssid[] = wifi_ssid;
   //  char manual_wifi_password[] = wifi_password;
   wifiMulti.addAP(wifi_ssid, wifi_password);
@@ -907,10 +910,6 @@ void setup_wifi() {
   Log.trace(F("Connecting to %s" CR), wifi_ssid1);
 #  endif
 
-=======
-  char manual_wifi_ssid[] = wifi_ssid;
-  char manual_wifi_password[] = wifi_password;
->>>>>>> 1technophile/development
   delay(10);
   WiFi.mode(WIFI_STA);
   if (wifiProtocol) forceWifiProtocol();
@@ -1388,6 +1387,9 @@ void loop() {
 #endif
 #ifdef ZactuatorPWM
       PWMLoop();
+#endif
+#ifdef ZgatewayRTL_433
+      rtl_433loop();
 #endif
     } else {
       connectMQTT();
