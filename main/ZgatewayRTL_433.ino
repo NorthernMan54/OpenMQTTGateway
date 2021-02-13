@@ -77,7 +77,7 @@ extern void MQTTtoRTL_433(char* topicOri, JsonObject& RTLdata) {
 }
 
 extern void enableRTLreceive() {
-  Log.trace(F("enableRTLreceive" CR));
+  Log.trace(F("enableRTLreceive: %F" CR), receiveMhz);
 #  ifdef ZgatewayRF
   disableRFReceive();
 #  endif
@@ -86,7 +86,6 @@ extern void enableRTLreceive() {
 #  endif
 
 #  ifdef ZradioCC1101
-  ELECHOUSE_cc1101.SpiStrobe(CC1101_SIDLE); // Idle receiver prior to setting a new frequency
   ELECHOUSE_cc1101.SetRx(receiveMhz); // set Receive on
 #  endif
   rtl_433.enableReceiver(RF_RECEIVER_GPIO);

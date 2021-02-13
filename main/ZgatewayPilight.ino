@@ -199,7 +199,6 @@ extern void enablePilightReceive() {
 #  endif
 
 #  ifdef ZradioCC1101
-  ELECHOUSE_cc1101.SpiStrobe(CC1101_SIDLE); // Idle receiver prior to setting a new frequency
   ELECHOUSE_cc1101.SetRx(receiveMhz); // set Receive on
 #  endif
   rf.enableReceiver();
