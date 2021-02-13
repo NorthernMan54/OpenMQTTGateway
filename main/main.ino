@@ -159,7 +159,9 @@ char gateway_name[parameters_size * 2] = Gateway_Name;
 bool connectedOnce = false; //indicate if we have been connected once to MQTT
 int failure_number_ntwk = 0; // number of failure connecting to network
 int failure_number_mqtt = 0; // number of failure connecting to MQTT
-
+#ifdef ZmqttDiscovery
+bool disc = true; // Auto discovery with Home Assistant convention
+#endif
 unsigned long timer_led_measures = 0;
 
 #ifdef ESP32
@@ -477,7 +479,7 @@ void connectMQTT() {
   client.setBufferSize(mqtt_max_packet_size);
   if (client.connect(gateway_name, mqtt_user, mqtt_pass, topic, will_QoS, will_Retain, will_Message)) {
 #if defined(ZboardM5STICKC) || defined(ZboardM5STICKCP) || defined(ZboardM5STACK)
-    if (low_power_mode < 2)
+    if (lowpowermode < 2)
       M5Display("MQTT connected", "", "");
 #endif
     Log.notice(F("Connected to broker" CR));
@@ -555,7 +557,7 @@ void setup() {
 #    endif
 #  elif ESP32
   preferences.begin(Gateway_Short_Name, false);
-  low_power_mode = preferences.getUInt("low_power_mode", DEFAULT_LOW_POWER_MODE);
+  lowpowermode = preferences.getUInt("lowpowermode", DEFAULT_LOW_POWER_MODE);
   preferences.end();
 #    if defined(ZboardM5STICKC) || defined(ZboardM5STICKCP) || defined(ZboardM5STACK)
   setupM5();
@@ -736,9 +738,6 @@ void setup() {
   setupRS232();
   modules.add(ZgatewayRS232);
 #endif
-#ifdef ZmqttDiscovery
-  modules.add(ZmqttDiscovery);
-#endif
 #ifdef ZsensorSHTC3
   setupSHTC3();
 #endif
@@ -898,6 +897,7 @@ void setupTLS() {
 
 #if defined(ESPWifiManualSetup)
 void setup_wifi() {
+<<<<<<< HEAD
   //  char manual_wifi_ssid[] = wifi_ssid;
   //  char manual_wifi_password[] = wifi_password;
   wifiMulti.addAP(wifi_ssid, wifi_password);
@@ -907,6 +907,10 @@ void setup_wifi() {
   Log.trace(F("Connecting to %s" CR), wifi_ssid1);
 #  endif
 
+=======
+  char manual_wifi_ssid[] = wifi_ssid;
+  char manual_wifi_password[] = wifi_password;
+>>>>>>> 1technophile/development
   delay(10);
   WiFi.mode(WIFI_STA);
   if (wifiProtocol) forceWifiProtocol();
@@ -924,14 +928,15 @@ void setup_wifi() {
 #  endif
   wifiMulti.run();
 
-  if (wifi_reconnect_bypass())
-    Log.notice(F("Connected with saved credentials" CR));
-
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Log.trace(F("." CR));
     failure_number_ntwk++;
     disconnection_handling(failure_number_ntwk);
+#  if defined(ESP32) && defined(ZgatewayBT)
+    if (failure_number_ntwk > maxConnectionRetryWifi)
+      lowPowerESP32();
+#  endif
   }
   Log.notice(F("WiFi ok with manual config credentials %s" CR), WiFi.SSID());
 }
@@ -1088,7 +1093,7 @@ void setup_wifimanager(bool reset_settings) {
   if (!wifi_reconnect_bypass()) // if we didn't connect with saved credential we start Wifimanager web portal
   {
 #  ifdef ESP32
-    if (low_power_mode < 2) {
+    if (lowpowermode < 2) {
 #    if defined(ZboardM5STICKC) || defined(ZboardM5STICKCP) || defined(ZboardM5STACK)
       M5Display("Connect your phone to WIFI AP:", WifiManager_ssid, WifiManager_password);
 #    endif
@@ -1117,7 +1122,7 @@ void setup_wifimanager(bool reset_settings) {
   }
 
 #  if defined(ZboardM5STICKC) || defined(ZboardM5STICKCP) || defined(ZboardM5STACK)
-  if (low_power_mode < 2)
+  if (lowpowermode < 2)
     M5Display("Wifi connected", "", "");
 #  endif
 
@@ -1273,15 +1278,25 @@ void loop() {
 #endif
     failure_number_ntwk = 0;
     if (client.connected()) {
-#ifdef ZmqttDiscovery
-      if (!connectedOnce) pubMqttDiscovery(); // at first connection we publish the discovery payloads
-#endif
       digitalWrite(LED_INFO, LED_INFO_ON);
-      connectedOnce = true;
       failure_number_ntwk = 0;
 
       client.loop();
 
+#ifdef ZmqttDiscovery
+      if (disc) {
+        if (!connectedOnce) {
+#  if defined(ZgatewayBT) && defined(ESP32)
+          stopProcessing(); // Avoid publication concurrency issues on ESP32 BLE
+#  endif
+          pubMqttDiscovery(); // at first connection we publish the discovery payloads
+#  if defined(ZgatewayBT) && defined(ESP32)
+          startProcessing();
+#  endif
+        }
+      }
+#endif
+      connectedOnce = true;
 #if defined(ESP8266) || defined(ESP32) || defined(__AVR_ATmega2560__) || defined(__AVR_ATmega1280__)
       if (now > (timer_sys_measures + (TimeBetweenReadingSYS * 1000)) || !timer_sys_measures) {
         timer_sys_measures = millis();
@@ -1427,7 +1442,7 @@ void stateMeasures() {
 #  endif
 #  ifdef ZgatewayBT
 #    ifdef ESP32
-  SYSdata["lowpowermode"] = (int)low_power_mode;
+  SYSdata["lowpowermode"] = (int)lowpowermode;
 #    endif
   SYSdata["interval"] = BLEinterval;
   SYSdata["scanbcnct"] = BLEscanBeforeConnect;
@@ -1563,7 +1578,7 @@ void receivingMQTT(char* topicOri, char* datacallback) {
 #  if defined(ZboardM5STICKC) || defined(ZboardM5STICKCP) || defined(ZboardM5STACK)
     MQTTtoM5(topicOri, jsondata);
 #  endif
-#  ifdef ZactuatorONOFF // outside the jsonpublishing macro due to the fact that we need to use simplepublishing with HA discovery
+#  ifdef ZactuatorONOFF
     MQTTtoONOFF(topicOri, jsondata);
 #  endif
 #  ifdef ZactuatorSomfy
@@ -1626,9 +1641,19 @@ void MQTTtoSYS(char* topicOri, JsonObject& SYSdata) { // json object decoding
 #  ifndef ESPWifiManualSetup
         setup_wifimanager(true);
 #  endif
-      } else {
-        Log.warning(F("wrong command" CR));
       }
+    }
+#endif
+#ifdef ZmqttDiscovery
+    if (SYSdata.containsKey("discovery")) {
+      if (SYSdata.is<bool>("discovery")) {
+        disc = SYSdata["discovery"];
+        if (disc)
+          pubMqttDiscovery();
+      } else {
+        Log.error(F("Discovery command not a boolean" CR));
+      }
+      Log.notice(F("Discovery state: %T" CR), disc);
     }
 #endif
   }

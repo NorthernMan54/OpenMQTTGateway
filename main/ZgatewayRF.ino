@@ -51,7 +51,7 @@ void RFtoMQTTdiscovery(SIGNAL_SIZE_UL_ULL MQTTvalue) { //on the fly switch creat
                   will_Topic, switchRF[3], switchRF[4],
                   switchRF[5], switchRF[6], switchRF[7],
                   0, "", "", true, subjectMQTTtoRF,
-                  "", "", "", "");
+                  "", "", "", "", false);
 }
 #  endif
 
@@ -98,7 +98,8 @@ void RFtoMQTT() {
 
     if (!isAduplicateSignal(MQTTvalue) && MQTTvalue != 0) { // conditions to avoid duplications of RF -->MQTT
 #  if defined(ZmqttDiscovery) && !defined(RF_DISABLE_TRANSMIT) //component creation for HA
-      RFtoMQTTdiscovery(MQTTvalue);
+      if (disc)
+        RFtoMQTTdiscovery(MQTTvalue);
 #  endif
       pub(subjectRFtoMQTT, RFdata);
       // Casting "receivedSignal[o].value" to (unsigned long) because ArduinoLog doesn't support uint64_t for ESP's
@@ -168,7 +169,15 @@ void MQTTtoRF(char* topicOri, char* datacallback) {
     // Acknowledgement to the GTWRF topic
     pub(subjectGTWRFtoMQTT, datacallback); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
   }
+<<<<<<< HEAD
   enableRFReceive();
+=======
+#    ifdef ZradioCC1101 // set Receive on and Transmitt off
+  ELECHOUSE_cc1101.SetRx(receiveMhz);
+  mySwitch.disableTransmit();
+  mySwitch.enableReceive(RF_RECEIVER_GPIO);
+#    endif
+>>>>>>> 1technophile/development
 }
 #  endif
 
@@ -221,6 +230,7 @@ void MQTTtoRF(char* topicOri, JsonObject& RFdata) { // json object decoding
     }
     enableActiveReceiver();
   }
+<<<<<<< HEAD
 }
 #  endif
 
@@ -244,6 +254,9 @@ void enableRFReceive() {
 #  endif
 #  ifdef ZradioCC1101 // set Receive on and Transmitt off
   ELECHOUSE_cc1101.SpiStrobe(CC1101_SIDLE); // Idle receiver prior to setting a new frequency
+=======
+#    ifdef ZradioCC1101 // set Receive on and Transmitt off
+>>>>>>> 1technophile/development
   ELECHOUSE_cc1101.SetRx(receiveMhz);
   #  endif
   mySwitch.disableTransmit();
