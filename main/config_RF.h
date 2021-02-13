@@ -54,6 +54,9 @@ extern void enablePilightReceive();
 #ifdef ZgatewayRTL_433
 extern void rtl_433loop();
 extern void rtl_433setup();
+extern void MQTTtoRTL_433(char* topicOri, JsonObject& RTLdata);
+extern void enableRTLreceive();
+extern void disableRTLreceive();
 #endif
 /*-------------------RF topics & parameters----------------------*/
 //433Mhz MQTT Subjects and keys
@@ -90,7 +93,7 @@ extern void rtl_433setup();
 
 /*-------------------RTL_433 topics & parameters----------------------*/
 //433Mhz Pilight MQTT Subjects and keys
-#define subjectMQTTtoPilight    "/commands/MQTTtoRTL_433"
+#define subjectMQTTtoRTL_433    "/commands/MQTTtoRTL_433"
 #define subjectRTL_433toMQTT    "/RTL_433toMQTT"
 
 /*-------------------CC1101 frequency----------------------*/
@@ -102,8 +105,10 @@ extern void rtl_433setup();
 #ifdef ZradioCC1101
 float receiveMhz = CC1101_FREQUENCY;
 int activeReceiver = 0; // 0 = PiLight, 1 = RF
-#  define PILIGHT 0
-#  define RF      1
+#  define RECERROR 0
+#  define PILIGHT 1
+#  define RF      2
+#  define RTL     3
 #endif
 
 /*-------------------PIN DEFINITIONS----------------------*/
@@ -161,6 +166,11 @@ void enableActiveReceiver() {
 #  ifdef ZgatewayRF
     case RF:
       enableRFReceive();
+      break;
+#  endif
+#  ifdef ZgatewayRTL_433
+    case RTL:
+      enableRTLreceive();
       break;
 #  endif
   }

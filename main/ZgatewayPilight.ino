@@ -194,6 +194,9 @@ extern void enablePilightReceive() {
   disableRFReceive();
 // enablePilightReceive();
 #  endif
+#  ifdef ZgatewayRTL_433
+  disableRTLreceive();
+#  endif
 
 #  ifdef ZradioCC1101
   ELECHOUSE_cc1101.SpiStrobe(CC1101_SIDLE); // Idle receiver prior to setting a new frequency

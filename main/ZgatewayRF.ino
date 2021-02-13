@@ -243,6 +243,10 @@ void enableRFReceive() {
 #  ifdef ZgatewayPilight
   disablePilightReceive();
 #  endif
+#  ifdef ZgatewayRTL_433
+  disableRTLreceive();
+#  endif
+
 #  ifdef ZradioCC1101 // set Receive on and Transmitt off
   ELECHOUSE_cc1101.SetRx(receiveMhz);
   #  endif

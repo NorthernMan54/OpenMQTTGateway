@@ -29,40 +29,75 @@
 
 #ifdef ZgatewayRTL_433
 
-#include <rtl_433_ESP.h>
+#  include <rtl_433_ESP.h>
 
-#define CC1101_FREQUENCY 433.92
-#define JSON_MSG_BUFFER 512
-#define ONBOARD_LED 2
+#  define CC1101_FREQUENCY 433.92
+#  define JSON_MSG_BUFFER  512
+#  define ONBOARD_LED      2
 
 char messageBuffer[JSON_MSG_BUFFER];
 
 rtl_433_ESP rtl_433(-1); // use -1 to disable transmitter
 
-#include <ELECHOUSE_CC1101_SRC_DRV.h>
+#  include <ELECHOUSE_CC1101_SRC_DRV.h>
 
-void rtl_433_Callback(char *protocol, char *message, unsigned int modulation)
-{
+void rtl_433_Callback(char* protocol, char* message, unsigned int modulation) {
   StaticJsonBuffer<JSON_MSG_BUFFER> jsonBuffer2;
-  JsonObject &RFrtl_433_ESPdata = jsonBuffer2.parseObject(message);
+  JsonObject& RFrtl_433_ESPdata = jsonBuffer2.parseObject(message);
   RFrtl_433_ESPdata.set("protocol", protocol);
   RFrtl_433_ESPdata.set("modulation", modulation);
   pub(subjectRTL_433toMQTT, RFrtl_433_ESPdata);
-#ifdef MEMORY_DEBUG
+#  ifdef MEMORY_DEBUG
   logprintfLn(LOG_INFO, "Post rtl_433_Callback: %d", ESP.getFreeHeap());
-#endif
+#  endif
 }
 
-void rtl_433setup()
-{
+void rtl_433setup() {
   rtl_433.initReceiver(RF_RECEIVER_GPIO, CC1101_FREQUENCY);
   rtl_433.setCallback(rtl_433_Callback, messageBuffer, JSON_MSG_BUFFER);
   Log.trace(F("ZgatewayRTL_433 setup done " CR));
 }
 
-void rtl_433loop()
-{
+void rtl_433loop() {
   rtl_433.loop();
+}
+
+extern void MQTTtoRTL_433(char* topicOri, JsonObject& RTLdata) {
+  if (cmpToMainTopic(topicOri, subjectMQTTtoRTL_433)) {
+    Log.trace(F("MQTTtoRTL_433 %s" CR), topicOri);
+    float tempMhz = RTLdata["mhz"];
+    if (tempMhz != 0 && validFrequency((int)tempMhz)) {
+      activeReceiver = RTL; // Enable RTL_433 Gateway
+      receiveMhz = tempMhz;
+      Log.notice(F("Receive mhz: %F" CR), receiveMhz);
+      pub(subjectMQTTtoRTL_433, RTLdata); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
+    }
+    enableActiveReceiver();
+  }
+}
+
+extern void enableRTLreceive() {
+  Log.trace(F("enableRTLreceive" CR));
+#  ifdef ZgatewayRF
+  disableRFReceive();
+#  endif
+#  ifdef ZgatewayPilight
+  disablePilightReceive();
+#  endif
+
+#  ifdef ZradioCC1101
+  ELECHOUSE_cc1101.SpiStrobe(CC1101_SIDLE); // Idle receiver prior to setting a new frequency
+  ELECHOUSE_cc1101.SetRx(receiveMhz); // set Receive on
+#  endif
+  rtl_433.enableReceiver(RF_RECEIVER_GPIO);
+  // rtl_433.initReceiver(RF_RECEIVER_GPIO);
+  pinMode(RF_EMITTER_GPIO, OUTPUT); // Set this here, because if this is the RX pin it was reset to INPUT by Serial.end();
+}
+
+extern void disableRTLreceive() {
+  Log.trace(F("disableRTLreceive" CR));
+  rtl_433.enableReceiver(-1);
+  rtl_433.disableReceiver();
 }
 
 #endif

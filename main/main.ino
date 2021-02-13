@@ -1546,6 +1546,9 @@ void receivingMQTT(char* topicOri, char* datacallback) {
 #ifdef ZgatewayPilight // ZgatewayPilight is only defined with json publishing due to its numerous parameters
     MQTTtoPilight(topicOri, jsondata);
 #endif
+#ifdef ZgatewayRTL_433 // ZgatewayPilight is only defined with json publishing due to its numerous parameters
+    MQTTtoRTL_433(topicOri, jsondata);
+#endif
 #ifdef jsonReceiving
 #  ifdef ZgatewayLORA
     MQTTtoLORA(topicOri, jsondata);
