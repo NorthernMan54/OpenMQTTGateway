@@ -48,7 +48,9 @@ void rtl_433_Callback(char *protocol, char *message, unsigned int modulation)
   RFrtl_433_ESPdata.set("protocol", protocol);
   RFrtl_433_ESPdata.set("modulation", modulation);
   pub(subjectRTL_433toMQTT, RFrtl_433_ESPdata);
-  Log.notice(F("Pre run_ook_demods: %d" CR), ESP.getFreeHeap());
+#ifdef MEMORY_DEBUG
+  logprintfLn(LOG_INFO, "Post rtl_433_Callback: %d", ESP.getFreeHeap());
+#endif
 }
 
 void rtl_433setup()
@@ -62,9 +64,5 @@ void rtl_433loop()
 {
   rtl_433.loop();
 }
-
-
-
-
 
 #endif
