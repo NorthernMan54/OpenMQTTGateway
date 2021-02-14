@@ -665,6 +665,7 @@ void setup() {
 #ifdef ZgatewayRF
   setupRF();
   modules.add(ZgatewayRF);
+  activeReceiver = RF;
 #endif
 #ifdef ZgatewayRF2
   setupRF2();
@@ -673,6 +674,7 @@ void setup() {
 #ifdef ZgatewayPilight
   setupPilight();
   modules.add(ZgatewayPilight);
+  activeReceiver = PILIGHT;
 #endif
 #ifdef ZgatewayWeatherStation
   setupWeatherStation();
@@ -744,6 +746,10 @@ void setup() {
 #ifdef ZgatewayRTL_433
   rtl_433setup();
   modules.add(ZgatewayRTL_433);
+  activeReceiver = RTL;
+#endif
+#if defined(ZgatewayRTL_433) || defined(ZgatewayRF) || defined(ZgatewayPilight)
+  enableActiveReceiver();
 #endif
   Log.trace(F("mqtt_max_packet_size: %d" CR), mqtt_max_packet_size);
   Log.notice(F("Setup OpenMQTTGateway end" CR));
