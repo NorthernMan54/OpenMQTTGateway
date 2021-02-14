@@ -46,6 +46,7 @@ void rtl_433_Callback(char* protocol, char* message, unsigned int modulation) {
   JsonObject& RFrtl_433_ESPdata = jsonBuffer2.parseObject(message);
   RFrtl_433_ESPdata.set("protocol", protocol);
   RFrtl_433_ESPdata.set("modulation", modulation);
+  RFrtl_433_ESPdata.set("mhz", receiveMhz);
   pub(subjectRTL_433toMQTT, RFrtl_433_ESPdata);
 #  ifdef MEMORY_DEBUG
   logprintfLn(LOG_INFO, "Post rtl_433_Callback: %d", ESP.getFreeHeap());
@@ -70,7 +71,10 @@ extern void MQTTtoRTL_433(char* topicOri, JsonObject& RTLdata) {
       activeReceiver = RTL; // Enable RTL_433 Gateway
       receiveMhz = tempMhz;
       Log.notice(F("Receive mhz: %F" CR), receiveMhz);
-      pub(subjectMQTTtoRTL_433, RTLdata); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
+      pub(subjectRTL_433toMQTT, RTLdata); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
+    } else {
+      pub(subjectRTL_433toMQTT, "{\"Status\": \"Error\"}"); // Fail feedback
+      Log.error(F("MQTTtoRTL_433 Fail json" CR));
     }
     enableActiveReceiver();
   }
