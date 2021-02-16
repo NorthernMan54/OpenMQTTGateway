@@ -57,7 +57,7 @@ StaticJsonBuffer<JSON_MSG_BUFFER> modulesBuffer;
 JsonArray& modules = modulesBuffer.createArray();
 
 // Modules config inclusion
-#if defined(ZgatewayRF) || defined(ZgatewayRF2) || defined(ZgatewayPilight) || defined(ZactuatorSomfy)
+#if defined(ZgatewayRF) || defined(ZgatewayRF2) || defined(ZgatewayPilight) || defined(ZactuatorSomfy) || defined(ZgatewayRTL_433)
 #  include "config_RF.h"
 #endif
 #ifdef ZgatewayWeatherStation

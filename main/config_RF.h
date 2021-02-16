@@ -105,7 +105,8 @@ extern void disableRTLreceive();
 #ifdef ZradioCC1101
 float receiveMhz = CC1101_FREQUENCY;
 #endif
-#if defined(ZgatewayRTL_433) || defined(ZgatewayRF) || defined(ZgatewayPilight)
+
+#if defined(ZgatewayRF)  || defined(ZgatewayPilight) ||  defined(ZgatewayRTL_433)
 int activeReceiver = 0; // 0 = PiLight, 1 = RF
 #  define RECERROR 0
 #  define PILIGHT 1
@@ -140,7 +141,7 @@ int activeReceiver = 0; // 0 = PiLight, 1 = RF
 #  endif
 #endif
 
-#ifdef ZgatewayRF|| ZgatewayPilight
+#if defined(ZgatewayRF)  || defined(ZgatewayPilight) ||  defined(ZgatewayRTL_433)
 #  ifdef ZradioCC1101
 bool validFrequency(int mhz) {
   //  CC1101 valid frequencies 300-348 MHZ, 387-464MHZ and 779-928MHZ.
