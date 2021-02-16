@@ -104,6 +104,8 @@ extern void disableRTLreceive();
 // Allow ZGatewayRF Module to change receive frequency of CC1101 Transceiver module
 #ifdef ZradioCC1101
 float receiveMhz = CC1101_FREQUENCY;
+#endif
+#if defined(ZgatewayRTL_433) || defined(ZgatewayRF) || defined(ZgatewayPilight)
 int activeReceiver = 0; // 0 = PiLight, 1 = RF
 #  define RECERROR 0
 #  define PILIGHT 1

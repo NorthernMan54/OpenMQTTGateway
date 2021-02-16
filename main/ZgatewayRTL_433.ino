@@ -67,10 +67,15 @@ extern void MQTTtoRTL_433(char* topicOri, JsonObject& RTLdata) {
   if (cmpToMainTopic(topicOri, subjectMQTTtoRTL_433)) {
     Log.trace(F("MQTTtoRTL_433 %s" CR), topicOri);
     float tempMhz = RTLdata["mhz"];
+    int minimumRssi = RTLdata["rssi"] | 0;
     if (tempMhz != 0 && validFrequency((int)tempMhz)) {
       activeReceiver = RTL; // Enable RTL_433 Gateway
       receiveMhz = tempMhz;
-      Log.notice(F("Receive mhz: %F" CR), receiveMhz);
+      Log.notice(F("RTL_433 Receive mhz: %F" CR), receiveMhz);
+      pub(subjectRTL_433toMQTT, RTLdata); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
+    } else if (minimumRssi != 0) {      
+      Log.notice(F("RTL_433 minimum RSSI: %d" CR), minimumRssi);
+      rtl_433.setMinimumRSSI(minimumRssi);
       pub(subjectRTL_433toMQTT, RTLdata); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
     } else {
       pub(subjectRTL_433toMQTT, "{\"Status\": \"Error\"}"); // Fail feedback

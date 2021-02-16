@@ -169,11 +169,13 @@ void MQTTtoPilight(char* topicOri, JsonObject& Pilightdata) {
             Log.error(F("Invalid JSON: can't read message/protocol" CR));
         }
       }
+  #ifdef ZradioCC1101 
     } else if (tempMhz != 0 && validFrequency((int)tempMhz)) {
       activeReceiver = PILIGHT; // Enable PILIGHT Gateway
       receiveMhz = tempMhz;
-      Log.notice(F("Receive mhz: %F" CR), receiveMhz);
+      Log.notice(F("PiLight Receive mhz: %F" CR), receiveMhz);
       pub(subjectGTWPilighttoMQTT, Pilightdata); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
+#endif
     } else {
       pub(subjectGTWPilighttoMQTT, "{\"Status\": \"Error\"}"); // Fail feedback
       Log.error(F("MQTTtoPilight Fail json" CR));

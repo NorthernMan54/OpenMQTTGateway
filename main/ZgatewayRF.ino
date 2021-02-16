@@ -186,7 +186,7 @@ void MQTTtoRF(char* topicOri, JsonObject& RFdata) { // json object decoding
       Log.notice(F("RF Protocol:%d" CR), valuePRT);
       Log.notice(F("RF Pulse Lgth: %d" CR), valuePLSL);
       Log.notice(F("Bits nb: %d" CR), valueBITS);
-#    ifdef ZradioCC1101 // set Receive off and Transmitt on
+#    ifdef ZradioCC1101 // set Receive off and Transmitt on 
       float trMhz = RFdata["mhz"] | CC1101_FREQUENCY;
       if (validFrequency((int)trMhz)) {
         ELECHOUSE_cc1101.SetTx(trMhz);
