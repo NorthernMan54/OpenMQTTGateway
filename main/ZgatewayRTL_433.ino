@@ -41,15 +41,13 @@ rtl_433_ESP rtl_433(-1); // use -1 to disable transmitter
 
 #  include <ELECHOUSE_CC1101_SRC_DRV.h>
 
-void rtl_433_Callback(char* protocol, char* message, unsigned int modulation) {
-  StaticJsonBuffer<JSON_MSG_BUFFER> jsonBuffer2;
+void rtl_433_Callback(char* message) {
+  DynamicJsonBuffer jsonBuffer2(JSON_MSG_BUFFER);
   JsonObject& RFrtl_433_ESPdata = jsonBuffer2.parseObject(message);
-  RFrtl_433_ESPdata.set("protocol", protocol);
-  RFrtl_433_ESPdata.set("modulation", modulation);
-  RFrtl_433_ESPdata.set("mhz", receiveMhz);
+
   pub(subjectRTL_433toMQTT, RFrtl_433_ESPdata);
 #  ifdef MEMORY_DEBUG
-  logprintfLn(LOG_INFO, "Post rtl_433_Callback: %d", ESP.getFreeHeap());
+    Log.trace(F("Post rtl_433_Callback: %d" CR), ESP.getFreeHeap());
 #  endif
 }
 
@@ -68,6 +66,7 @@ extern void MQTTtoRTL_433(char* topicOri, JsonObject& RTLdata) {
     Log.trace(F("MQTTtoRTL_433 %s" CR), topicOri);
     float tempMhz = RTLdata["mhz"];
     int minimumRssi = RTLdata["rssi"] | 0;
+    int debug = RTLdata["debug"] | 0;
     if (tempMhz != 0 && validFrequency((int)tempMhz)) {
       activeReceiver = RTL; // Enable RTL_433 Gateway
       receiveMhz = tempMhz;
@@ -76,6 +75,10 @@ extern void MQTTtoRTL_433(char* topicOri, JsonObject& RTLdata) {
     } else if (minimumRssi != 0) {      
       Log.notice(F("RTL_433 minimum RSSI: %d" CR), minimumRssi);
       rtl_433.setMinimumRSSI(minimumRssi);
+      pub(subjectRTL_433toMQTT, RTLdata); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
+    } else if (debug != 0) {      
+      Log.notice(F("RTL_433 gather debug: %d" CR), debug);
+      rtl_433.getDebug(debug);
       pub(subjectRTL_433toMQTT, RTLdata); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
     } else {
       pub(subjectRTL_433toMQTT, "{\"Status\": \"Error\"}"); // Fail feedback
