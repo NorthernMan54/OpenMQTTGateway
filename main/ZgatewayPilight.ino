@@ -83,8 +83,8 @@ void setupPilight() {
   // rf.setCallback(pilightCallback);
   // rf.initReceiver(RF_RECEIVER_GPIO);
   pinMode(RF_EMITTER_GPIO, OUTPUT); // Set this here, because if this is the RX pin it was reset to INPUT by Serial.end();
-  Log.notice(F("RF_EMITTER_GPIO: %d " CR), RF_EMITTER_GPIO);
-  Log.notice(F("RF_RECEIVER_GPIO: %d " CR), RF_RECEIVER_GPIO);
+  Log.trace(F("PiLight RF_EMITTER_GPIO: %d " CR), RF_EMITTER_GPIO);
+  Log.trace(F("PiLight RF_RECEIVER_GPIO: %d " CR), RF_RECEIVER_GPIO);
   Log.trace(F("ZgatewayPilight setup done " CR));
   // #  else
   // Log.trace(F("ZgatewayPilight setup cannot be done, comment first ZgatewayRF && ZgatewayRF2" CR));

@@ -57,6 +57,12 @@ extern void rtl_433setup();
 extern void MQTTtoRTL_433(char* topicOri, JsonObject& RTLdata);
 extern void enableRTLreceive();
 extern void disableRTLreceive();
+extern int getMinimumRSSI();
+extern int getCurrentRSSI();
+/**
+ * minimumRssi minimum RSSI value to enable receiver
+ */
+int minimumRssi = 0;
 #endif
 /*-------------------RF topics & parameters----------------------*/
 //433Mhz MQTT Subjects and keys
@@ -103,11 +109,20 @@ extern void disableRTLreceive();
 #endif
 // Allow ZGatewayRF Module to change receive frequency of CC1101 Transceiver module
 #ifdef ZradioCC1101
+/**
+ * CC1101 Transceiver Module receive frequency
+ */
 float receiveMhz = CC1101_FREQUENCY;
 #endif
 
 #if defined(ZgatewayRF)  || defined(ZgatewayPilight) ||  defined(ZgatewayRTL_433)
-int activeReceiver = 0; // 0 = PiLight, 1 = RF
+/**
+ * Active Receiver Module
+ * 1 = ZgatewayPilight
+ * 2 = ZgatewayRF
+ * 3 = ZgatewayRTL_433
+ */
+int activeReceiver = 0;
 #  define RECERROR 0
 #  define PILIGHT 1
 #  define RF      2
@@ -157,6 +172,8 @@ bool validFrequency(int mhz) {
 
 int currentReceiver = -1;
 
+extern void stateMeasures();  // Send a status message 
+
 void enableActiveReceiver() {
   // if (currentReceiver != activeReceiver) {
   Log.trace(F("enableActiveReceiver: %d" CR), activeReceiver);
@@ -177,6 +194,7 @@ void enableActiveReceiver() {
       break;
 #  endif
   }
+  stateMeasures();  // Send a status message 
   currentReceiver = activeReceiver;
   // }
 }

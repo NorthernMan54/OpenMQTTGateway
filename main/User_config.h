@@ -341,7 +341,9 @@ uint8_t wifiProtocol = 0; // default mode, automatic selection
 #ifdef ZgatewaySRFB
 #  define SERIAL_BAUD 19200
 #else
-#  define SERIAL_BAUD 115200
+#  ifndef SERIAL_BAUD
+#    define SERIAL_BAUD 115200
+#  endif
 #endif
 /*--------------MQTT general topics-----------------*/
 // global MQTT subject listened by the gateway to execute commands (send RF, IR or others)
@@ -352,6 +354,7 @@ uint8_t wifiProtocol = 0; // default mode, automatic selection
 // key used for launching commands to the gateway
 #define restartCmd "restart"
 #define eraseCmd   "erase"
+#define statusCmd  "status"
 
 // uncomment the line below to integrate msg value into the subject when receiving
 //#define valueAsASubject true

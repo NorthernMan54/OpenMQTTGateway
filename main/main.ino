@@ -161,6 +161,8 @@ int failure_number_ntwk = 0; // number of failure connecting to network
 int failure_number_mqtt = 0; // number of failure connecting to MQTT
 #ifdef ZmqttDiscovery
 bool disc = true; // Auto discovery with Home Assistant convention
+#else
+bool disc = false; // Auto discovery with Home Assistant convention
 #endif
 unsigned long timer_led_measures = 0;
 
@@ -611,6 +613,7 @@ void setup() {
     mdns_init();
     IPAddress ipaddr = MDNS.queryHost(mqtt_server, 10000 /* ms */);
     (String() + ipaddr[0] + "." + ipaddr[1] + "." + ipaddr[2] + "." + ipaddr[3]).toCharArray(mqtt_server, 30);
+    mdns_free();
   }
   Log.trace(F("Mqtt server: %s" CR), mqtt_server);
   Log.trace(F("Port: %l" CR), port);
@@ -1432,6 +1435,9 @@ void stateMeasures() {
   uint32_t freeMem;
   freeMem = ESP.getFreeHeap();
   SYSdata["freemem"] = freeMem;
+#    ifdef ESP32
+  SYSdata["freestack"] = uxTaskGetStackHighWaterMark(NULL);
+#    endif
 #    ifdef ESP32_ETHERNET
   SYSdata["mac"] = (char*)ETH.macAddress().c_str();
   SYSdata["ip"] = ip2CharArray(ETH.localIP());
@@ -1473,6 +1479,17 @@ void stateMeasures() {
   SYSdata["m5batpower"] = (float)M5.Axp.GetBatPower();
   SYSdata["m5batchargecurrent"] = (float)M5.Axp.GetBatChargeCurrent();
   SYSdata["m5apsvoltage"] = (float)M5.Axp.GetAPSVoltage();
+#  endif
+#  if defined(ZgatewayRF) || defined(ZgatewayPilight) || defined(ZgatewayRTL_433)
+  SYSdata["activeReceiver"] = (int)activeReceiver;
+#  endif
+#  ifdef ZradioCC1101
+  SYSdata["mhz"] = (int)receiveMhz;
+#  endif
+#  if defined(ZgatewayRTL_433)
+  SYSdata["minimumRssi"] = (int)getMinimumRSSI();
+  SYSdata["currentRssi"] = (int)getCurrentRSSI();
+  SYSdata["messageCount"] = (int)getMessageCount();
 #  endif
   SYSdata.set("modules", modules);
   pub(subjectSYStoMQTT, SYSdata);
@@ -1652,6 +1669,8 @@ void MQTTtoSYS(char* topicOri, JsonObject& SYSdata) { // json object decoding
 #  ifndef ESPWifiManualSetup
         setup_wifimanager(true);
 #  endif
+      } else if (strstr(cmd, statusCmd) != NULL) { //erase and restart
+        stateMeasures();
       }
     }
 #endif

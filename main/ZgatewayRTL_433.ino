@@ -111,4 +111,16 @@ extern void disableRTLreceive() {
   rtl_433.disableReceiver();
 }
 
+extern int getMinimumRSSI() {
+  return rtl_433.minimumRssi;
+}
+
+extern int getCurrentRSSI() {
+  return rtl_433.currentRssi;
+}
+
+extern int getMessageCount() {
+  return rtl_433.messageCount;
+}
+
 #endif
