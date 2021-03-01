@@ -923,9 +923,15 @@ void setup_wifi() {
   WiFi.mode(WIFI_STA);
   if (wifiProtocol) forceWifiProtocol();
 
+<<<<<<< HEAD
     // We start by connecting to a WiFi network
     // Log.trace(F("Connecting to %s" CR), manual_wifi_ssid);
 #  ifdef ESPWifiAdvancedSetup
+=======
+  // We start by connecting to a WiFi network
+  Log.trace(F("Connecting to %s" CR), manual_wifi_ssid);
+#  ifdef NetworkAdvancedSetup
+>>>>>>> 1technophile/development
   IPAddress ip_adress(ip);
   IPAddress gateway_adress(gateway);
   IPAddress subnet_adress(subnet);
@@ -1294,13 +1300,7 @@ void loop() {
 #ifdef ZmqttDiscovery
       if (disc) {
         if (!connectedOnce) {
-#  if defined(ZgatewayBT) && defined(ESP32)
-          stopProcessing(); // Avoid publication concurrency issues on ESP32 BLE
-#  endif
           pubMqttDiscovery(); // at first connection we publish the discovery payloads
-#  if defined(ZgatewayBT) && defined(ESP32)
-          startProcessing();
-#  endif
         }
       }
 #endif
@@ -1372,6 +1372,8 @@ void loop() {
 #  ifndef ESP32
       if (BTtoMQTT())
         Log.trace(F("BTtoMQTT OK" CR));
+#  else
+      emptyBTQueue();
 #  endif
 #endif
 #ifdef ZgatewaySRFB
@@ -1457,6 +1459,10 @@ void stateMeasures() {
 #  ifdef ZgatewayBT
 #    ifdef ESP32
   SYSdata["lowpowermode"] = (int)lowpowermode;
+  SYSdata["btqblck"] = btQueueBlocked;
+  SYSdata["btqsum"] = btQueueLengthSum;
+  SYSdata["btqsnd"] = btQueueLengthCount;
+  SYSdata["btqavg"] = (btQueueLengthCount > 0 ? btQueueLengthSum / (float)btQueueLengthCount : 0);
 #    endif
   SYSdata["interval"] = BLEinterval;
   SYSdata["scanbcnct"] = BLEscanBeforeConnect;
