@@ -70,6 +70,7 @@ void setupRF() {
 #  endif
   mySwitch.setRepeatTransmit(RF_EMITTER_REPEAT);
 
+  Log.notice(F("ZgatewayRF command topic: %s%s" CR), mqtt_topic, subjectMQTTtoRF);
   Log.trace(F("ZgatewayRF setup done" CR));
 }
 

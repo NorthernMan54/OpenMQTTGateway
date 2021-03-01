@@ -52,8 +52,9 @@ void rtl_433_Callback(char* message) {
 }
 
 void rtl_433setup() {
-  rtl_433.initReceiver(RF_RECEIVER_GPIO, CC1101_FREQUENCY);
+  rtl_433.initReceiver(RF_RECEIVER_GPIO, receiveMhz);
   rtl_433.setCallback(rtl_433_Callback, messageBuffer, JSON_MSG_BUFFER);
+  Log.notice(F("ZgatewayRTL_433 command topic: %s%s" CR), mqtt_topic, subjectMQTTtoRTL_433);
   Log.trace(F("ZgatewayRTL_433 setup done " CR));
 }
 
@@ -66,7 +67,8 @@ extern void MQTTtoRTL_433(char* topicOri, JsonObject& RTLdata) {
     Log.trace(F("MQTTtoRTL_433 %s" CR), topicOri);
     float tempMhz = RTLdata["mhz"];
     int minimumRssi = RTLdata["rssi"] | 0;
-    int debug = RTLdata["debug"] | 0;
+    int debug = RTLdata["debug"] | -1;
+    int status = RTLdata["status"] | -1;
     if (tempMhz != 0 && validFrequency((int)tempMhz)) {
       activeReceiver = RTL; // Enable RTL_433 Gateway
       receiveMhz = tempMhz;
@@ -76,9 +78,14 @@ extern void MQTTtoRTL_433(char* topicOri, JsonObject& RTLdata) {
       Log.notice(F("RTL_433 minimum RSSI: %d" CR), minimumRssi);
       rtl_433.setMinimumRSSI(minimumRssi);
       pub(subjectRTL_433toMQTT, RTLdata); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
-    } else if (debug != 0) {      
-      Log.notice(F("RTL_433 gather debug: %d" CR), debug);
-      rtl_433.getDebug(debug);
+    } else if (debug >= 0 && debug <= 4) {      
+      Log.notice(F("RTL_433 set debug: %d" CR), debug);
+      rtl_433.setDebug(debug);
+      rtl_433.initReceiver(RF_RECEIVER_GPIO, receiveMhz);
+      pub(subjectRTL_433toMQTT, RTLdata); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
+    } else if (status >= 0 ) {      
+      Log.notice(F("RTL_433 get status: %d" CR), status);
+      rtl_433.getStatus(status);
       pub(subjectRTL_433toMQTT, RTLdata); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
     } else {
       pub(subjectRTL_433toMQTT, "{\"Status\": \"Error\"}"); // Fail feedback
