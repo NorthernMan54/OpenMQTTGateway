@@ -64,6 +64,13 @@ extern int getCurrentRSSI();
  */
 int minimumRssi = 0;
 #endif
+#ifdef ZgatewayNRF24
+extern void nrf24setup();
+extern void nrf24loop();
+extern void MQTTtoNRF24(char* topicOri, JsonObject& NRF24data);
+extern void enableNRFreceive();
+extern void disableNRFreceive();
+#endif
 /*-------------------RF topics & parameters----------------------*/
 //433Mhz MQTT Subjects and keys
 #define subjectMQTTtoRF    "/commands/MQTTto433"
@@ -101,6 +108,11 @@ int minimumRssi = 0;
 //433Mhz Pilight MQTT Subjects and keys
 #define subjectMQTTtoRTL_433    "/commands/MQTTtoRTL_433"
 #define subjectRTL_433toMQTT    "/RTL_433toMQTT"
+
+/*-------------------nrf24l01 topics & parameters----------------------*/
+//433Mhz Pilight MQTT Subjects and keys
+#define subjectMQTTtoNRF24    "/commands/MQTTtoNRF24"
+#define subjectNRF24toMQTT    "/NRF24toMQTT"
 
 /*-------------------CC1101 frequency----------------------*/
 //Match frequency to the hardware version of the radio if ZradioCC1101 is used.

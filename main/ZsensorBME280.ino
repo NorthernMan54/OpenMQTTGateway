@@ -101,6 +101,7 @@ void setupZsensorBME280() {
   mySensor.settings.humidOverSample = 1;
 
   delay(10); // Gives the Sensor enough time to turn on (The BME280 requires 2ms to start up)
+  Log.notice(F("ZsensorBME280 message topic: %s%s" CR), mqtt_topic, BMETOPIC);
   Log.notice(F("Bosch BME280 Initialized - Result of .begin(): 0x %h" CR), mySensor.begin());
 }
 

@@ -57,7 +57,7 @@ StaticJsonBuffer<JSON_MSG_BUFFER> modulesBuffer;
 JsonArray& modules = modulesBuffer.createArray();
 
 // Modules config inclusion
-#if defined(ZgatewayRF) || defined(ZgatewayRF2) || defined(ZgatewayPilight) || defined(ZactuatorSomfy) || defined(ZgatewayRTL_433)
+#if defined(ZgatewayRF) || defined(ZgatewayRF2) || defined(ZgatewayPilight) || defined(ZactuatorSomfy) || defined(ZgatewayRTL_433) || defined(ZgatewayNRF24)
 #  include "config_RF.h"
 #endif
 #ifdef ZgatewayWeatherStation
@@ -751,6 +751,10 @@ void setup() {
   modules.add(ZgatewayRTL_433);
   activeReceiver = RTL;
 #endif
+#ifdef ZgatewayNRF24
+  nrf24setup();
+  modules.add(ZgatewayNRF24);
+#endif
 #if defined(ZgatewayRTL_433) || defined(ZgatewayRF) || defined(ZgatewayPilight)
   enableActiveReceiver();
 #endif
@@ -910,8 +914,8 @@ void setupTLS() {
 
 #if defined(ESPWifiManualSetup)
 void setup_wifi() {
-  //  char manual_wifi_ssid[] = wifi_ssid;
-  //  char manual_wifi_password[] = wifi_password;
+  char manual_wifi_ssid[] = wifi_ssid;
+  char manual_wifi_password[] = wifi_password;
   wifiMulti.addAP(wifi_ssid, wifi_password);
   Log.trace(F("Connecting to %s" CR), wifi_ssid);
 #  ifdef wifi_ssid1
@@ -923,15 +927,10 @@ void setup_wifi() {
   WiFi.mode(WIFI_STA);
   if (wifiProtocol) forceWifiProtocol();
 
-<<<<<<< HEAD
-    // We start by connecting to a WiFi network
-    // Log.trace(F("Connecting to %s" CR), manual_wifi_ssid);
-#  ifdef ESPWifiAdvancedSetup
-=======
   // We start by connecting to a WiFi network
   Log.trace(F("Connecting to %s" CR), manual_wifi_ssid);
 #  ifdef NetworkAdvancedSetup
->>>>>>> 1technophile/development
+
   IPAddress ip_adress(ip);
   IPAddress gateway_adress(gateway);
   IPAddress subnet_adress(subnet);
@@ -1402,6 +1401,9 @@ void loop() {
 #ifdef ZgatewayRTL_433
       rtl_433loop();
 #endif
+#ifdef ZgatewayNRF24
+      nrf24loop();
+#endif
     } else {
       connectMQTT();
     }
@@ -1577,6 +1579,9 @@ void receivingMQTT(char* topicOri, char* datacallback) {
 #endif
 #ifdef ZgatewayRTL_433 // ZgatewayPilight is only defined with json publishing due to its numerous parameters
     MQTTtoRTL_433(topicOri, jsondata);
+#endif
+#ifdef ZgatewayNRF24 // ZgatewayPilight is only defined with json publishing due to its numerous parameters
+    MQTTtoNRF24(topicOri, jsondata);
 #endif
 #ifdef jsonReceiving
 #  ifdef ZgatewayLORA
