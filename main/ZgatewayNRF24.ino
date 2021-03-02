@@ -31,6 +31,19 @@
 
 #  include "RF24.h"
 
+#  define DATA_RATE       RF24_2MBPS
+#  define DEFAULT_CHANNEL 17
+#  define ADDRESS_WIDTH   5
+#  define ADDRESS         0xBA151A6F07LL // Logitech mouse
+#  define PAYLOAD_SIZE    32
+#  define MIN_CHANNEL     2
+#  define MAX_CHANNEL     85
+#  define WAIT            100
+
+#  define PKT_SIZE 37
+
+#  define JSON_MSG_BUFFER 512
+
 /** nrf24L01 module connections to a ESP32
  * CE_GPIO=25
  * SCK_GPIO=18
@@ -40,41 +53,88 @@
  * IRQ_GPIO=4
  */
 
-#ifndef CE_GPIO
-#define CE_GPIO 25
-#endif
-#ifndef CSN_GPIO
-#define CSN_GPIO 5
-#endif
-
-#define DEFAULTCHANNEL 40
+#  ifndef CE_GPIO
+#    define CE_GPIO 25
+#  endif
+#  ifndef CSN_GPIO
+#    define CSN_GPIO 5
+#  endif
 
 RF24 radio(CE_GPIO, CSN_GPIO);
+uint8_t buf[PKT_SIZE];
+uint8_t channel = DEFAULT_CHANNEL;
+unsigned long startTime = millis();
 
 void nrf24setup() {
   Log.notice(F("ZgatewayNRF24 command topic: %s%s" CR), mqtt_topic, subjectMQTTtoNRF24);
   Log.notice(F("ZgatewayNRF24 message topic: %s%s" CR), mqtt_topic, subjectNRF24toMQTT);
+  radio.begin();
   radio.setAutoAck(false);
+  //radio.write_register(RF_SETUP, 0x09); // Disable PA, 2M rate, LNA enabled
   radio.setPALevel(RF24_PA_MIN);
-  radio.setDataRate(RF24_250KBPS);
-  radio.setPayloadSize(32);
-  radio.setChannel(DEFAULTCHANNEL);
+  radio.setDataRate(DATA_RATE);
+#  ifdef PAYLOAD_SIZE
+  radio.setPayloadSize(PAYLOAD_SIZE);
+#  endif
+  radio.setChannel(DEFAULT_CHANNEL);
+  radio.setAddressWidth(ADDRESS_WIDTH);
   // RF24 doesn't ever fully set this -- only certain bits of it
- // writeRegister(EN_RXADDR, 0x00);
+  // writeRegister(EN_RXADDR, 0x00);
   // RF24 doesn't have a native way to change MAC...
   // 0x00 is "invalid" according to the datasheet, but Travis Goodspeed found it works :)
- // writeRegister(SETUP_AW, 0x00);
- // radio.openReadingPipe(0, promisc_addr0);
- // radio.openReadingPipe(1, promisc_addr1);
+  // writeRegister(SETUP_AW, 0x00);
+  radio.openReadingPipe(1, ADDRESS);
+  // radio.openReadingPipe(1, promisc_addr1);
   radio.disableCRC();
+  Log.trace(F("ZgatewayNRF24 config CE_GPIO: %d CSN_GPIO: %d" CR), CE_GPIO, CSN_GPIO);
   radio.startListening();
   radio.stopListening();
+#  ifdef LOG_LEVEL_TRACE
   radio.printPrettyDetails();
+#  endif
+  radio.startListening();
 
   Log.trace(F("ZgatewayNRF24 setup done " CR));
 }
 
 void nrf24loop() {
+  uint8_t pipe; // initialize pipe data
+  if (radio.available(&pipe)) {
+    int length = radio.getDynamicPayloadSize();
+    radio.read(&buf, sizeof(buf));
+    Log.trace(F("nrf24 channel: %d payload: "), channel);
+
+    DynamicJsonBuffer jsonBuffer2(JSON_MSG_BUFFER);
+    JsonObject& NRF24Data = jsonBuffer2.createObject();
+    NRF24Data.set("channel", (int)channel);
+
+    JsonArray& payload = NRF24Data.createNestedArray("payload");
+
+    for (int j = 0; j < PAYLOAD_SIZE; j++) {
+      if (buf[j] < 16) {
+        Serial.print("0");
+      }
+      Serial.print(buf[j], HEX);
+      Serial.print(" ");
+      payload.add(String(buf[j], HEX));
+    }
+    Serial.println("");
+
+    pub(subjectNRF24toMQTT, NRF24Data);
+#  ifdef MEMORY_DEBUG
+    Log.trace(F("Post nrf24loop: %d" CR), ESP.getFreeHeap());
+#  endif
+  }
+
+  if (millis() - startTime > WAIT) {
+    channel++;
+    if (channel > MAX_CHANNEL) {
+      channel = MIN_CHANNEL;
+    }
+    radio.setChannel(channel);
+    startTime = millis();
+    // Log.notice(F("."), channel);
+  }
 }
 
 extern void MQTTtoNRF24(char* topicOri, JsonObject& NRF24data) {

@@ -628,6 +628,7 @@ void setup() {
 #endif
 
   setup_parameters();
+  Log.notice(F("OpenMQTTGateway command topic: %s%s" CR), mqtt_topic, subjectMQTTtoSYSset);
 
   client.setCallback(callback);
 
