@@ -140,6 +140,9 @@ void nrf24setup() {
   Log.trace(F("ZgatewayNRF24 setup done " CR));
 }
 
+/**
+ * Enable sniffer mode as per http://travisgoodspeed.blogspot.com/2011/02/promiscuity-is-nrf24l01s-duty.html
+ */
 void nrf24sniffer() {
   radio.begin();
   radio.setAutoAck(false);
@@ -206,6 +209,10 @@ void nrf24loop() {
   }
 }
 
+/**
+ * return json device status
+ */ 
+
 void nrf24Status() {
   DynamicJsonBuffer jsonBuffer2(JSON_MSG_BUFFER);
   JsonObject& NRF24Data = jsonBuffer2.createObject();
@@ -217,7 +224,7 @@ void nrf24Status() {
   if (sniffer) {
     NRF24Data.set("sniffer", (bool)sniffer);
   } else {
-    // NRF24Data.set("address", String(address1, HEX));
+    NRF24Data.set("address", address1);
   }
   NRF24Data.set("addressWidth", (int)addressWidth);
   pub(subjectNRF24toMQTT, NRF24Data);
@@ -253,7 +260,7 @@ extern void MQTTtoNRF24(char* topicOri, JsonObject& NRF24data) {
       Log.notice(F("NRF24 sniffer enabled" CR));
       pub(subjectNRF24toMQTT, NRF24data); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
     } else if (NRF24data.containsKey("address")) {
-      int _address = NRF24data["address"];
+      uint64_t _address = strtoull(NRF24data["address"], (char **) '\0', 16);;
       sniffer = false;
       address1 = _address;
       radio.openReadingPipe(1, address1);
@@ -278,18 +285,16 @@ extern void MQTTtoNRF24(char* topicOri, JsonObject& NRF24data) {
       Log.notice(F("NRF24 set debug: %d" CR), debug);
       pub(subjectNRF24toMQTT, NRF24data);
     } else if (NRF24data.containsKey("dataRate")) {
-      // rf24_datarate_e _dataRate = NRF24data["dataRate"];
-      /*
+      uint8_t _dataRate = NRF24data["dataRate"];
       if (_dataRate <= 2) {
-        dataRate = _dataRate;
+        dataRate = (rf24_datarate_e)_dataRate;
         Log.notice(F("NRF24 set dataRate: %d" CR), dataRate);
         radio.setDataRate(dataRate);
-        pub(subjectNRF24toMQTT, NRF24data); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
+        pub(subjectNRF24toMQTT, NRF24data);
       } else {
         pub(subjectNRF24toMQTT, "{\"Status\": \"Error\"}"); // Fail feedback
         Log.error(F("MQTTtoNRF24 illegal data rate." CR));
       }
-      */
     } else if (NRF24data.containsKey("debug")) {
       debug = NRF24data["debug"];
       Log.notice(F("NRF24 set debug: %d" CR), debug);
