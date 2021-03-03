@@ -29,12 +29,15 @@
 
 #ifdef ZgatewayNRF24
 
+#  include <SPI.h>
 #  include "RF24.h"
+#  include "nRF24L01.h"
 
 #  define DATA_RATE       RF24_2MBPS
 #  define DEFAULT_CHANNEL 17
 #  define ADDRESS_WIDTH   5
-#  define ADDRESS         0xBA151A6F07LL // Logitech mouse
+#  define ADDRESS1        0xBA151A6F07LL // Logitech mouse
+#  define SCANNER_ADDRESS 0xAALL // Scanner address
 #  define PAYLOAD_SIZE    32
 #  define MIN_CHANNEL     2
 #  define MAX_CHANNEL     85
@@ -65,6 +68,46 @@ uint8_t buf[PKT_SIZE];
 uint8_t channel = DEFAULT_CHANNEL;
 unsigned long startTime = millis();
 
+bool sendPayload = false;
+bool debug = false;
+bool fixedChannel = false;
+bool sniffer = false;
+
+//uint64_t address0 = 0xAALL;
+uint64_t address1 = ADDRESS1;
+uint8_t addressWidth = 5;
+/**
+ * nrf24L01 data rate
+ * 2 = 250Kbs
+ * 0 = 1Mbs
+ * 1 = 2Mbs
+ */
+rf24_datarate_e dataRate = RF24_2MBPS;
+
+uint8_t nrfWriteRegister(uint8_t reg, uint8_t value)
+{
+  uint8_t status;
+
+  digitalWrite(CSN_GPIO, LOW);
+  status = SPI.transfer(W_REGISTER | (REGISTER_MASK & reg));
+  SPI.transfer(value);
+  digitalWrite(CSN_GPIO, HIGH);
+  return status;
+}
+
+uint8_t nrfWriteRegister(uint8_t reg, const uint8_t *buf, uint8_t len)
+{
+  uint8_t status;
+
+  digitalWrite(CSN_GPIO, LOW);
+  status = SPI.transfer(W_REGISTER | (REGISTER_MASK & reg));
+  while (len--)
+    SPI.transfer(*buf++);
+  digitalWrite(CSN_GPIO, HIGH);
+
+  return status;
+}
+
 void nrf24setup() {
   Log.notice(F("ZgatewayNRF24 command topic: %s%s" CR), mqtt_topic, subjectMQTTtoNRF24);
   Log.notice(F("ZgatewayNRF24 message topic: %s%s" CR), mqtt_topic, subjectNRF24toMQTT);
@@ -72,7 +115,7 @@ void nrf24setup() {
   radio.setAutoAck(false);
   //radio.write_register(RF_SETUP, 0x09); // Disable PA, 2M rate, LNA enabled
   radio.setPALevel(RF24_PA_MIN);
-  radio.setDataRate(DATA_RATE);
+  radio.setDataRate(dataRate);
 #  ifdef PAYLOAD_SIZE
   radio.setPayloadSize(PAYLOAD_SIZE);
 #  endif
@@ -83,7 +126,7 @@ void nrf24setup() {
   // RF24 doesn't have a native way to change MAC...
   // 0x00 is "invalid" according to the datasheet, but Travis Goodspeed found it works :)
   // writeRegister(SETUP_AW, 0x00);
-  radio.openReadingPipe(1, ADDRESS);
+  radio.openReadingPipe(1, address1);
   // radio.openReadingPipe(1, promisc_addr1);
   radio.disableCRC();
   Log.trace(F("ZgatewayNRF24 config CE_GPIO: %d CSN_GPIO: %d" CR), CE_GPIO, CSN_GPIO);
@@ -97,6 +140,24 @@ void nrf24setup() {
   Log.trace(F("ZgatewayNRF24 setup done " CR));
 }
 
+void nrf24sniffer() {
+  radio.begin();
+  radio.setAutoAck(false);
+  radio.setPALevel(RF24_PA_MIN);
+  radio.setDataRate(dataRate);
+  radio.setPayloadSize(32);
+  radio.setChannel(channel);
+  // RF24 doesn't ever fully set this -- only certain bits of it
+  nrfWriteRegister(EN_RXADDR, 0x00);
+  // RF24 doesn't have a native way to change MAC...
+  // 0x00 is "invalid" according to the datasheet, but Travis Goodspeed found it works :)
+  nrfWriteRegister(SETUP_AW, 0x00);
+  radio.openReadingPipe(1, 0xAALL);
+  //  radio.openReadingPipe(1, promisc_addr1);
+  radio.disableCRC();
+  radio.startListening();
+}
+
 void nrf24loop() {
   uint8_t pipe; // initialize pipe data
   if (radio.available(&pipe)) {
@@ -107,50 +168,135 @@ void nrf24loop() {
     DynamicJsonBuffer jsonBuffer2(JSON_MSG_BUFFER);
     JsonObject& NRF24Data = jsonBuffer2.createObject();
     NRF24Data.set("channel", (int)channel);
+    //   NRF24Data.set("address1", String(address1, HEX));
 
     JsonArray& payload = NRF24Data.createNestedArray("payload");
 
     for (int j = 0; j < PAYLOAD_SIZE; j++) {
       if (buf[j] < 16) {
         Serial.print("0");
+        Serial.print(buf[j], HEX);
+        payload.add("0" + String(buf[j], HEX));
+      } else {
+        Serial.print(buf[j], HEX);
+        payload.add(String(buf[j], HEX));
       }
-      Serial.print(buf[j], HEX);
       Serial.print(" ");
-      payload.add(String(buf[j], HEX));
     }
     Serial.println("");
+    if (sendPayload) {
+      pub(subjectNRF24toMQTT, NRF24Data);
+    }
 
-    pub(subjectNRF24toMQTT, NRF24Data);
 #  ifdef MEMORY_DEBUG
     Log.trace(F("Post nrf24loop: %d" CR), ESP.getFreeHeap());
 #  endif
   }
 
-  if (millis() - startTime > WAIT) {
-    channel++;
-    if (channel > MAX_CHANNEL) {
-      channel = MIN_CHANNEL;
+  if (!fixedChannel) {
+    if (millis() - startTime > WAIT) {
+      channel++;
+      if (channel > MAX_CHANNEL) {
+        channel = MIN_CHANNEL;
+      }
+      radio.setChannel(channel);
+      startTime = millis();
+      // Log.notice(F("."), channel);
     }
-    radio.setChannel(channel);
-    startTime = millis();
-    // Log.notice(F("."), channel);
   }
 }
+
+void nrf24Status() {
+  DynamicJsonBuffer jsonBuffer2(JSON_MSG_BUFFER);
+  JsonObject& NRF24Data = jsonBuffer2.createObject();
+  if (fixedChannel) {
+    NRF24Data.set("channel", (int)channel);
+  } else {
+    NRF24Data.set("channel", -1);
+  }
+  if (sniffer) {
+    NRF24Data.set("sniffer", (bool)sniffer);
+  } else {
+    // NRF24Data.set("address", String(address1, HEX));
+  }
+  NRF24Data.set("addressWidth", (int)addressWidth);
+  pub(subjectNRF24toMQTT, NRF24Data);
+}
+
+/**
+ * nrf24 commands
+ * 
+ * modes  - scanner - continuiosly loop thru all available channels ( set channel to -1 to enable, set channel to a valid channel to disable )
+ *        - sniffer - enable address sniffer mode ( sniffer = true, to disable set an address )
+ *        - normal  - fixed channel and address
+ * 
+ * sendPayload  - Send payload as a mqtt message
+ * dataRate     - Set date rate ( 0 - 1 Mbs, 1 - 2Mbs, 2 - 250Kbs )
+ * status       - print to stdout the current nrf24l01 status
+ * debug        - set debug level
+ * channel      - set receive channel, 0 to 125.  -1 enable channel scanner
+ * sniffer      - enable sniffer
+ * address      - set receive address ( disable sniffer )
+ * addressWidth - set address width
+ */
 
 extern void MQTTtoNRF24(char* topicOri, JsonObject& NRF24data) {
   if (cmpToMainTopic(topicOri, subjectMQTTtoNRF24)) {
     Log.trace(F("MQTTtoNRF24 %s" CR), topicOri);
-    float tempMhz = NRF24data["mhz"];
-    int minimumRssi = NRF24data["rssi"] | 0;
-    int debug = NRF24data["debug"] | -1;
-    int status = NRF24data["status"] | -1;
-    if (minimumRssi != 0) {
-      Log.notice(F("NRF24 minimum RSSI: %d" CR), minimumRssi);
+    if (NRF24data.containsKey("sendPayload")) {
+      sendPayload = NRF24data["sendPayload"];
+      Log.notice(F("NRF24 sendPayload: %T" CR), sendPayload);
       pub(subjectNRF24toMQTT, NRF24data); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
-    } else if (debug >= 0 && debug <= 4) {
+    } else if (NRF24data.containsKey("sniffer")) {
+      sniffer = true;
+      nrf24sniffer();
+      Log.notice(F("NRF24 sniffer enabled" CR));
+      pub(subjectNRF24toMQTT, NRF24data); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
+    } else if (NRF24data.containsKey("address")) {
+      int _address = NRF24data["address"];
+      sniffer = false;
+      address1 = _address;
+      radio.openReadingPipe(1, address1);
+      Log.notice(F("NRF24 address enabled %d" CR), address1);
+      pub(subjectNRF24toMQTT, NRF24data);
+    } else if (NRF24data.containsKey("addressWidth")) {
+      int _addressWidth = NRF24data["addressWidth"];
+      addressWidth = _addressWidth;
+      radio.setAddressWidth(addressWidth);
+      Log.notice(F("NRF24 addressWidth %d" CR), addressWidth);
+      pub(subjectNRF24toMQTT, NRF24data);
+    } else if (NRF24data.containsKey("channel")) {
+      int _channel = NRF24data["channel"];
+      if (_channel < 0) {
+        fixedChannel = false;
+        Log.notice(F("NRF24 channel scanner enabled." CR));
+      } else {
+        fixedChannel = true;
+        channel = _channel;
+        Log.notice(F("NRF24 channel set to: %d" CR), channel);
+      }
+      Log.notice(F("NRF24 set debug: %d" CR), debug);
+      pub(subjectNRF24toMQTT, NRF24data);
+    } else if (NRF24data.containsKey("dataRate")) {
+      // rf24_datarate_e _dataRate = NRF24data["dataRate"];
+      /*
+      if (_dataRate <= 2) {
+        dataRate = _dataRate;
+        Log.notice(F("NRF24 set dataRate: %d" CR), dataRate);
+        radio.setDataRate(dataRate);
+        pub(subjectNRF24toMQTT, NRF24data); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
+      } else {
+        pub(subjectNRF24toMQTT, "{\"Status\": \"Error\"}"); // Fail feedback
+        Log.error(F("MQTTtoNRF24 illegal data rate." CR));
+      }
+      */
+    } else if (NRF24data.containsKey("debug")) {
+      debug = NRF24data["debug"];
       Log.notice(F("NRF24 set debug: %d" CR), debug);
       pub(subjectNRF24toMQTT, NRF24data); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
-    } else if (status >= 0) {
+    } else if (NRF24data.containsKey("status")) {
+      radio.printPrettyDetails();
+      nrf24Status();
       pub(subjectNRF24toMQTT, NRF24data); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
     } else {
       pub(subjectNRF24toMQTT, "{\"Status\": \"Error\"}"); // Fail feedback
@@ -171,9 +317,11 @@ extern void enableNRFreceive() {
 #  ifdef ZgatewayRTL_433
   disableRTLreceive();
 #  endif
+  radio.startListening();
 }
 
 extern void disableNRFreceive() {
+  radio.stopListening();
 }
 
 #endif
