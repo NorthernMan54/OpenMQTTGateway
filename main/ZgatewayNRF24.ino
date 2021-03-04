@@ -112,29 +112,25 @@ uint8_t nrfWriteRegister(uint8_t reg, const uint8_t* buf, uint8_t len) {
 /**
  * convert hexadecimal string to buffer for sending
  */
-void convert(const char *s)
-{
- int i, j, k;
- buf[0] = 0x0;
- 
- for (j = 0, i = 0, k = 0; j < strlen(s); j++)
- {
-   
-   if (i++ == 0) {
-     buf[k++] = '0';
-     buf[k++] = 'x';
-   }
-   
-   buf[k++] = s[j];
-   
-   if (i == 2) {
-     if(j != strlen(s) -1)  buf[k++] = ',';
-     i = 0;
-   }
- }
+void convert(const char* s) {
+  int i, j, k;
+  buf[0] = 0x0;
 
-buf[k] = 0x0;
+  for (j = 0, i = 0, k = 0; j < strlen(s); j++) {
+    if (i++ == 0) {
+      buf[k++] = '0';
+      buf[k++] = 'x';
+    }
 
+    buf[k++] = s[j];
+
+    if (i == 2) {
+      if (j != strlen(s) - 1) buf[k++] = ',';
+      i = 0;
+    }
+  }
+
+  buf[k] = 0x0;
 }
 
 void nrf24setup() {
@@ -297,33 +293,39 @@ void nrf24Status() {
 extern void MQTTtoNRF24(char* topicOri, JsonObject& NRF24data) {
   if (cmpToMainTopic(topicOri, subjectMQTTtoNRF24)) {
     Log.trace(F("MQTTtoNRF24 %s" CR), topicOri);
+    bool success = false;
     if (NRF24data.containsKey("sendPayload")) {
       sendPayload = NRF24data["sendPayload"];
       Log.notice(F("NRF24 sendPayload: %T" CR), sendPayload);
-      pub(subjectNRF24toMQTT, NRF24data); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
-    } else if (NRF24data.containsKey("sniffer")) {
+      success = false;
+    };
+    if (NRF24data.containsKey("sniffer")) {
       sniffer = true;
       nrf24sniffer();
       Log.notice(F("NRF24 sniffer enabled" CR));
-      pub(subjectNRF24toMQTT, NRF24data); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
-    } else if (NRF24data.containsKey("writeAddress")) {
+      success = true;
+    };
+    if (NRF24data.containsKey("writeAddress")) {
       writeAddress = strtoull(NRF24data["writeAddress"], (char**)'\0', 16);
       radio.openWritingPipe(writeAddress);
       Log.notice(F("NRF24 writeAddress %d" CR), address1);
-      pub(subjectNRF24toMQTT, NRF24data);
-    } else if (NRF24data.containsKey("address")) {
+      success = true;
+    };
+    if (NRF24data.containsKey("address")) {
       uint64_t _address = strtoull(NRF24data["address"], (char**)'\0', 16);
       sniffer = false;
       address1 = _address;
       radio.openReadingPipe(1, address1);
       Log.notice(F("NRF24 address enabled %d" CR), address1);
-      pub(subjectNRF24toMQTT, NRF24data);
-    } else if (NRF24data.containsKey("crc")) {
+      success = true;
+    };
+    if (NRF24data.containsKey("crc")) {
       int _crc = NRF24data["crc"];
       radio.setCRCLength((rf24_crclength_e)_crc);
       Log.notice(F("NRF24 crc %d" CR), radio.getCRCLength());
-      pub(subjectNRF24toMQTT, NRF24data);
-    } else if (NRF24data.containsKey("dynamic")) {
+      success = true;
+    };
+    if (NRF24data.containsKey("dynamic")) {
       bool _dynamic = NRF24data["dynamic"];
       dynamic = _dynamic;
       if (dynamic) {
@@ -332,19 +334,22 @@ extern void MQTTtoNRF24(char* topicOri, JsonObject& NRF24data) {
         radio.disableDynamicPayloads();
       }
       Log.notice(F("NRF24 dynamic %T" CR), dynamic);
-      pub(subjectNRF24toMQTT, NRF24data);
-    } else if (NRF24data.containsKey("payloadSize")) {
+      success = true;
+    };
+    if (NRF24data.containsKey("payloadSize")) {
       int _payloadSize = NRF24data["payloadSize"];
       radio.setPayloadSize(_payloadSize);
       Log.notice(F("NRF24 payloadSize %d" CR), radio.getPayloadSize());
-      pub(subjectNRF24toMQTT, NRF24data);
-    } else if (NRF24data.containsKey("addressWidth")) {
+      success = true;
+    };
+    if (NRF24data.containsKey("addressWidth")) {
       int _addressWidth = NRF24data["addressWidth"];
       addressWidth = _addressWidth;
       radio.setAddressWidth(addressWidth);
       Log.notice(F("NRF24 addressWidth %d" CR), addressWidth);
-      pub(subjectNRF24toMQTT, NRF24data);
-    } else if (NRF24data.containsKey("channel")) {
+      success = true;
+    };
+    if (NRF24data.containsKey("channel")) {
       int _channel = NRF24data["channel"];
       if (_channel < 0) {
         fixedChannel = false;
@@ -355,40 +360,46 @@ extern void MQTTtoNRF24(char* topicOri, JsonObject& NRF24data) {
         Log.notice(F("NRF24 channel set to: %d" CR), channel);
       }
       Log.notice(F("NRF24 set debug: %d" CR), debug);
-      pub(subjectNRF24toMQTT, NRF24data);
-    } else if (NRF24data.containsKey("dataRate")) {
+      success = true;
+    };
+    if (NRF24data.containsKey("dataRate")) {
       uint8_t _dataRate = NRF24data["dataRate"];
       if (_dataRate <= 2) {
         dataRate = (rf24_datarate_e)_dataRate;
         Log.notice(F("NRF24 set dataRate: %d" CR), dataRate);
         radio.setDataRate(dataRate);
-        pub(subjectNRF24toMQTT, NRF24data);
+        success = true;
       } else {
         pub(subjectNRF24toMQTT, "{\"Status\": \"Error\"}"); // Fail feedback
         Log.error(F("MQTTtoNRF24 illegal data rate." CR));
       }
-    } else if (NRF24data.containsKey("debug")) {
+    };
+    if (NRF24data.containsKey("debug")) {
       debug = NRF24data["debug"];
       Log.notice(F("NRF24 set debug: %d" CR), debug);
-      pub(subjectNRF24toMQTT, NRF24data); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
-    } else if (NRF24data.containsKey("status")) {
+      success = true;
+    };
+    if (NRF24data.containsKey("status")) {
       radio.printPrettyDetails();
       nrf24Status();
-      pub(subjectNRF24toMQTT, NRF24data); // we acknowledge the sending by publishing the value to an acknowledgement topic, for the moment even if it is a signal repetition we acknowledge also
-    } else if (NRF24data.containsKey("write")) {
+      success = true;
+    };
+    if (NRF24data.containsKey("write")) {
       const char* message = NRF24data.get<const char*>("write");
       // char * message = NRF24data["write"];
       convert(message);
       radio.stopListening();
-      radio.write(&buf, strlen(message)/2);
+      radio.write(&buf, strlen(message) / 2);
       radio.startListening();
-      Log.notice(F("NRF24 write channel: %d, length: %d \"%s\"" CR), channel, strlen(message)/2, NRF24data.get<const char*>("write"));
-      pub(subjectNRF24toMQTT, NRF24data);
-    } else {
+      Log.notice(F("NRF24 write channel: %d, length: %d \"%s\"" CR), channel, strlen(message) / 2, NRF24data.get<const char*>("write"));
+      success = true;
+    }
+    if (!success) {
       pub(subjectNRF24toMQTT, "{\"Status\": \"Error\"}"); // Fail feedback
       Log.error(F("MQTTtoNRF24 Fail json" CR));
+    } else {
+      pub(subjectNRF24toMQTT, NRF24data);
     }
-    // enableActiveReceiver();
   }
 }
 
