@@ -297,7 +297,7 @@ extern void MQTTtoNRF24(char* topicOri, JsonObject& NRF24data) {
     if (NRF24data.containsKey("sendPayload")) {
       sendPayload = NRF24data["sendPayload"];
       Log.notice(F("NRF24 sendPayload: %T" CR), sendPayload);
-      success = false;
+      success = true;
     };
     if (NRF24data.containsKey("sniffer")) {
       sniffer = true;
@@ -357,6 +357,7 @@ extern void MQTTtoNRF24(char* topicOri, JsonObject& NRF24data) {
       } else {
         fixedChannel = true;
         channel = _channel;
+        radio.setChannel(channel);
         Log.notice(F("NRF24 channel set to: %d" CR), channel);
       }
       Log.notice(F("NRF24 set debug: %d" CR), debug);
