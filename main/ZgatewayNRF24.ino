@@ -278,29 +278,31 @@ void nrf24loop() {
       channel++;
       if (channel > MAX_CHANNEL) {
         channel = MIN_CHANNEL;
-        uint8_t busiestChannel = 0;
-        uint8_t maxUsage = 0;
-        uint8_t i = 0;
-        while (i <= MAX_CHANNEL) {
-          if (values[i] >= 16) {
-            Serial.print("*");
-          } else {
-            Serial.print(min((uint8_t)0xf, values[i]), HEX);
+        if (sniffer) {
+          uint8_t busiestChannel = 0;
+          uint8_t maxUsage = 0;
+          uint8_t i = 0;
+          while (i <= MAX_CHANNEL) {
+            if (values[i] >= 16) {
+              Serial.print("*");
+            } else {
+              Serial.print(min((uint8_t)0xf, values[i]), HEX);
+            }
+            if (values[i] > maxUsage) {
+              busiestChannel = i;
+              maxUsage = values[i];
+            }
+            ++i;
           }
-          if (values[i] > maxUsage) {
-            busiestChannel = i;
-            maxUsage = values[i];
-          }
-          ++i;
+          // if ((uint8_t)maxUsage > 0) {
+          Serial.print(" busy: ");
+          Serial.print((uint8_t)busiestChannel);
+          Serial.print(" count: ");
+          Serial.print((uint8_t)maxUsage);
+          Serial.print(" uptime: ");
+          Serial.println(millis() / 1000);
+          // }
         }
-        // if ((uint8_t)maxUsage > 0) {
-        Serial.print(" busy: ");
-        Serial.print((uint8_t)busiestChannel);
-        Serial.print(" count: ");
-        Serial.print((uint8_t)maxUsage);
-        Serial.print(" uptime: ");
-        Serial.println(millis() / 1000);
-        // }
         memset(values, 0, sizeof(values));
       }
       radio.setChannel(channel);
