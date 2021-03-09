@@ -74,6 +74,7 @@ RF24 radio(CE_GPIO, CSN_GPIO);
 uint8_t buf[PKT_SIZE];
 uint8_t channel = DEFAULT_CHANNEL;
 unsigned long startTime = millis();
+uint8_t values[MAX_CHANNEL + 1];
 
 bool sendPayload = false;
 bool debug = DEBUG;
@@ -125,7 +126,8 @@ void convert(const char* s) {
     uint8_t letter = hexchartoint(s[j]) * 16;
     letter = letter + hexchartoint(s[j + 1]);
     buf[k] = letter;
-    j++;k++;
+    j++;
+    k++;
   }
 
   buf[k] = 0x0;
@@ -145,26 +147,25 @@ uint8_t hexchartoint(char hex) {
 }
 
 void printBuf(int length) {
-    for (int j = 0; j < length; j++) {
-      if (buf[j] < 16) {
-        if (debug) {
-          Serial.print("0");
-          Serial.print(buf[j], HEX);
-        }
-
-      } else {
-        if (debug) {
-          Serial.print(buf[j], HEX);
-        }
-
-      }
+  for (int j = 0; j < length; j++) {
+    if (buf[j] < 16) {
       if (debug) {
-        Serial.print(" ");
+        Serial.print("0");
+        Serial.print(buf[j], HEX);
+      }
+
+    } else {
+      if (debug) {
+        Serial.print(buf[j], HEX);
       }
     }
     if (debug) {
-      Serial.println("");
+      Serial.print(" ");
     }
+  }
+  if (debug) {
+    Serial.println("");
+  }
 }
 
 void nrf24setup() {
@@ -191,7 +192,7 @@ void nrf24setup() {
   radio.printPrettyDetails();
 #  endif
   radio.startListening();
-
+  memset(values, 0, sizeof(values));
   Log.trace(F("ZgatewayNRF24 setup done " CR));
 }
 
@@ -200,70 +201,76 @@ void nrf24setup() {
  */
 void nrf24sniffer() {
   radio.begin();
+  radio.stopListening();
   radio.setAutoAck(false);
-  radio.setPALevel(RF24_PA_MIN);
-  radio.setDataRate(dataRate);
+  nrfWriteRegister(RF_SETUP, 0x09);
   radio.setPayloadSize(32);
-  radio.setChannel(channel);
+  radio.setChannel(25);
   // RF24 doesn't ever fully set this -- only certain bits of it
   nrfWriteRegister(EN_RXADDR, 0x00);
+  nrfWriteRegister(EN_AA, 0x00); // disable shockburst auto acknowledge
+  nrfWriteRegister(SETUP_RETR, 0x00); // disable retransmit
   // RF24 doesn't have a native way to change MAC...
   // 0x00 is "invalid" according to the datasheet, but Travis Goodspeed found it works :)
   nrfWriteRegister(SETUP_AW, 0x00);
-  radio.openReadingPipe(1, 0xAALL);
-  //  radio.openReadingPipe(1, promisc_addr1);
+  radio.openReadingPipe(0, 0xAALL);
+
   radio.disableCRC();
   radio.startListening();
 }
 
 void nrf24loop() {
   uint8_t pipe; // initialize pipe data
-  if (radio.isChipConnected() && radio.available(&pipe)) {
+  // if (radio.isChipConnected() && radio.available(&pipe)) {
+  if (radio.available(&pipe)) {
     int length = 0;
+    ++values[channel];
     if (dynamic) {
       length = radio.getDynamicPayloadSize();
     } else {
       length = radio.getPayloadSize();
     }
     radio.read(&buf, length);
-    if (debug) {
-      Log.trace(F("nrf24 channel: %d length: %d pipe: %d payload: "), channel, length, pipe);
-    }
-    DynamicJsonBuffer jsonBuffer2(JSON_MSG_BUFFER);
-    JsonObject& NRF24Data = jsonBuffer2.createObject();
-    NRF24Data.set("channel", (int)channel);
-    NRF24Data.set("length", (int)length);
-    NRF24Data.set("pipe", (int)pipe);
+    if (!sniffer) {
+      if (debug) {
+        Log.trace(F("nrf24 channel: %d length: %d pipe: %d payload: "), channel, length, pipe);
+      }
+      DynamicJsonBuffer jsonBuffer2(JSON_MSG_BUFFER);
+      JsonObject& NRF24Data = jsonBuffer2.createObject();
+      NRF24Data.set("channel", (int)channel);
+      NRF24Data.set("length", (int)length);
+      NRF24Data.set("pipe", (int)pipe);
 
-    JsonArray& payload = NRF24Data.createNestedArray("payload");
+      JsonArray& payload = NRF24Data.createNestedArray("payload");
 
-    for (int j = 0; j < length; j++) {
-      if (buf[j] < 16) {
-        if (debug) {
-          Serial.print("0");
-          Serial.print(buf[j], HEX);
+      for (int j = 0; j < length; j++) {
+        if (buf[j] < 16) {
+          if (debug) {
+            Serial.print("0");
+            Serial.print(buf[j], HEX);
+          }
+          payload.add("0" + String(buf[j], HEX));
+        } else {
+          if (debug) {
+            Serial.print(buf[j], HEX);
+          }
+          payload.add(String(buf[j], HEX));
         }
-        payload.add("0" + String(buf[j], HEX));
-      } else {
         if (debug) {
-          Serial.print(buf[j], HEX);
+          Serial.print(" ");
         }
-        payload.add(String(buf[j], HEX));
       }
       if (debug) {
-        Serial.print(" ");
+        Serial.println("");
       }
-    }
-    if (debug) {
-      Serial.println("");
-    }
-    if (sendPayload) {
-      pub(subjectNRF24toMQTT, NRF24Data);
-    }
+      if (sendPayload) {
+        pub(subjectNRF24toMQTT, NRF24Data);
+      }
 
 #  ifdef MEMORY_DEBUG
-    Log.trace(F("Post nrf24loop: %d" CR), ESP.getFreeHeap());
+      Log.trace(F("Post nrf24loop: %d" CR), ESP.getFreeHeap());
 #  endif
+    }
   }
 
   if (!fixedChannel) {
@@ -271,10 +278,34 @@ void nrf24loop() {
       channel++;
       if (channel > MAX_CHANNEL) {
         channel = MIN_CHANNEL;
+        uint8_t busiestChannel = 0;
+        uint8_t maxUsage = 0;
+        uint8_t i = 0;
+        while (i <= MAX_CHANNEL) {
+          if (values[i] >= 16) {
+            Serial.print("*");
+          } else {
+            Serial.print(min((uint8_t)0xf, values[i]), HEX);
+          }
+          if (values[i] > maxUsage) {
+            busiestChannel = i;
+            maxUsage = values[i];
+          }
+          ++i;
+        }
+        // if ((uint8_t)maxUsage > 0) {
+        Serial.print(" busy: ");
+        Serial.print((uint8_t)busiestChannel);
+        Serial.print(" count: ");
+        Serial.print((uint8_t)maxUsage);
+        Serial.print(" uptime: ");
+        Serial.println(millis() / 1000);
+        // }
+        memset(values, 0, sizeof(values));
       }
       radio.setChannel(channel);
       startTime = millis();
-      // Log.notice(F("."), channel);
+      //      Log.notice(F("."), channel);
     }
   }
 }
@@ -304,6 +335,7 @@ void nrf24Status() {
   NRF24Data.set("payloadSize", radio.getPayloadSize());
   NRF24Data.set("dynamic", (bool)dynamic);
   NRF24Data.set("autoAck", (bool)autoAck);
+  NRF24Data.set("connected", (bool)radio.isChipConnected());
   pub(subjectNRF24toMQTT, NRF24Data);
 }
 
@@ -341,19 +373,26 @@ extern void MQTTtoNRF24(char* topicOri, JsonObject& NRF24data) {
     };
     if (NRF24data.containsKey("sniffer")) {
       sniffer = true;
+      fixedChannel = false;
       nrf24sniffer();
       Log.notice(F("NRF24 sniffer enabled" CR));
       success = true;
     };
     if (NRF24data.containsKey("writeAddress")) {
       writeAddress = strtoull(NRF24data["writeAddress"], (char**)'\0', 16);
+      radio.stopListening();
+      sniffer = false;
       radio.openWritingPipe(writeAddress);
+      radio.startListening();
       Log.notice(F("NRF24 writeAddress %d" CR), address1);
       success = true;
     };
     if (NRF24data.containsKey("ack")) {
       bool _ack = NRF24data["ack"];
+      radio.stopListening();
+      sniffer = false;
       radio.setAutoAck(1, _ack);
+      radio.startListening();
       autoAck = _ack;
       Log.notice(F("NRF24 ack %d" CR), autoAck);
       success = true;
@@ -362,42 +401,57 @@ extern void MQTTtoNRF24(char* topicOri, JsonObject& NRF24data) {
       uint64_t _address = strtoull(NRF24data["address"], (char**)'\0', 16);
       sniffer = false;
       address1 = _address;
-      radio.openReadingPipe(1, address1);
+      radio.stopListening();
+      radio.openReadingPipe(0, address1);
+      radio.startListening();
       Log.notice(F("NRF24 address enabled %d" CR), address1);
       success = true;
     };
     if (NRF24data.containsKey("crc")) {
       int _crc = NRF24data["crc"];
+      radio.startListening();
+      sniffer = false;
       radio.setCRCLength((rf24_crclength_e)_crc);
+      radio.startListening();
       Log.notice(F("NRF24 crc %d" CR), radio.getCRCLength());
       success = true;
     };
     if (NRF24data.containsKey("dynamic")) {
       bool _dynamic = NRF24data["dynamic"];
       dynamic = _dynamic;
+      radio.stopListening();
+      sniffer = false;
       if (dynamic) {
         radio.enableDynamicPayloads();
       } else {
         radio.disableDynamicPayloads();
       }
+      radio.startListening();
       Log.notice(F("NRF24 dynamic %T" CR), dynamic);
       success = true;
     };
     if (NRF24data.containsKey("payloadSize")) {
       int _payloadSize = NRF24data["payloadSize"];
+      radio.stopListening();
+      sniffer = false;
       radio.setPayloadSize(_payloadSize);
+      radio.startListening();
       Log.notice(F("NRF24 payloadSize %d" CR), radio.getPayloadSize());
       success = true;
     };
     if (NRF24data.containsKey("addressWidth")) {
       int _addressWidth = NRF24data["addressWidth"];
       addressWidth = _addressWidth;
+      radio.stopListening();
+      sniffer = false;
       radio.setAddressWidth(addressWidth);
+      radio.startListening();
       Log.notice(F("NRF24 addressWidth %d" CR), addressWidth);
       success = true;
     };
     if (NRF24data.containsKey("channel")) {
       int _channel = NRF24data["channel"];
+      sniffer = false;
       if (_channel < 0) {
         fixedChannel = false;
         Log.notice(F("NRF24 channel scanner enabled." CR));
@@ -412,10 +466,13 @@ extern void MQTTtoNRF24(char* topicOri, JsonObject& NRF24data) {
     };
     if (NRF24data.containsKey("dataRate")) {
       uint8_t _dataRate = NRF24data["dataRate"];
+      sniffer = false;
       if (_dataRate <= 2) {
         dataRate = (rf24_datarate_e)_dataRate;
         Log.notice(F("NRF24 set dataRate: %d" CR), dataRate);
+        radio.stopListening();
         radio.setDataRate(dataRate);
+        radio.startListening();
         success = true;
       } else {
         pub(subjectNRF24toMQTT, "{\"Status\": \"Error\"}"); // Fail feedback
@@ -433,13 +490,13 @@ extern void MQTTtoNRF24(char* topicOri, JsonObject& NRF24data) {
       success = true;
     };
     if (NRF24data.containsKey("write")) {
-      const char* message = NRF24data.get<const char*>("write");
+      const char* write = NRF24data.get<const char*>("write");
       // char * message = NRF24data["write"];
-      convert(message);
+      convert(write);
       radio.stopListening();
-      bool writeStatus = radio.write(buf, strlen(message) / 2);
-      Log.notice(F("NRF24 write channel: %d, length: %d, sent: %T, \"%s\"" CR), channel, strlen(message) / 2, writeStatus, message);
-      printBuf(strlen(message) / 2);
+      bool writeStatus = radio.write(buf, strlen(write) / 2);
+      Log.notice(F("NRF24 write channel: %d, length: %d, sent: %T, \"%s\"" CR), channel, strlen(write) / 2, writeStatus, write);
+      printBuf(strlen(write) / 2);
       if (!writeStatus) {
         pub(subjectNRF24toMQTT, "{\"Status\": \"Write Error\"}"); // Fail feedback
         Log.error(F("MQTTtoNRF24 write fail" CR));
