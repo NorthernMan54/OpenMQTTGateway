@@ -348,7 +348,7 @@ void nrf24Status() {
  *        - sniffer - enable address sniffer mode ( sniffer = true, to disable set an address )
  *        - normal  - fixed channel and address
  * 
- * sendPayload  - Send payload as a mqtt message
+ * sendPayload  - Send decoded signal payload as as a mqtt message
  * dataRate     - Set date rate ( 0 - 1 Mbs, 1 - 2Mbs, 2 - 250Kbs )
  * status       - print to stdout the current nrf24l01 status
  * debug        - set debug level
