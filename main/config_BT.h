@@ -161,4 +161,16 @@ enum ble_sensor_model {
 #  endif
 #endif
 
+/*---------------INTERNAL USE: DO NOT MODIFY--------------*/
+struct BLEdevice {
+  char macAdr[18];
+  bool isDisc;
+  bool isWhtL;
+  bool isBlkL;
+  bool connect;
+  ble_sensor_model sensorModel;
+};
+
+JsonObject& getBTJsonObject(const char* json = NULL, bool haPresenceEnabled = true);
+
 #endif
